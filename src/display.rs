@@ -24,10 +24,9 @@ impl Display {
                     true => cur_val += 255,
                     false => {
                         let mut new_val = cur_val as f32;
-                        // new_val = new_val - (new_val * 0.1);
                         new_val -= new_val * 0.15;
                         cur_val = new_val as i16
-                    },
+                    }
                 }
                 self.pixels[ci][ri] = cur_val.clamp(0, 255) as u8;
             }

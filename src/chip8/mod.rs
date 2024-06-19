@@ -165,7 +165,7 @@ impl Chip8 {
             0x7000 => {
                 // (7xkk) Add Vx, byte - Add byte to register
                 let v_x = &mut self.v[get_x!(opcode)];
-                let (s, _) =  v_x.overflowing_add(get_kk!(opcode));
+                let (s, _) = v_x.overflowing_add(get_kk!(opcode));
                 *v_x = s;
             }
             0x8000 => {
@@ -324,7 +324,7 @@ impl Chip8 {
                         match self.halt_for_input {
                             true => {
                                 self.pc -= 2;
-                            },
+                            }
                             false => {
                                 self.halt_for_input = true;
                             }
@@ -445,13 +445,6 @@ impl Chip8 {
         s
     }
 
-    // pub fn key_press(&mut self, key: Key) {
-    //     self.keyboard[key as usize] = true;
-    // }
-    //
-    // pub fn key_release(&mut self, key: Key) {
-    //     self.keyboard[key as usize] = false;
-    // }
     pub fn set_key_state(&mut self, key: Key, is_pressed: bool) {
         let cur_state = &mut self.keyboard[key as usize];
         if *cur_state != is_pressed {

@@ -1,4 +1,3 @@
-
 #[macro_export]
 macro_rules! get_nnn {
     ($opcode:expr) => {
@@ -38,5 +37,5 @@ macro_rules! get_kk {
 macro_rules! invalid_opcode {
     ($opcode:expr) => {
         panic!("Invalid opcode: {:#X}", $opcode)
-    }
+    };
 }
