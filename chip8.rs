@@ -2,6 +2,7 @@ use std::fmt::Error;
 use std::sync::{Arc, Mutex};
 use macroquad::rand::rand;
 
+pub mod util;
 pub type Screen = [[bool; 64]; 32];
 
 const FONT_SET: [u8; 80] = [
@@ -94,8 +95,26 @@ impl Chip8 {
         screen_writer[y as usize][x as usize] = !screen_writer[y as usize][x as usize];
 
         // println!("x: {}, y: {}, c = {}", x, y, r);
+
+
+        let opcode = self.fetch_opcode();
+
+
+
+
        Ok(1)
     }
 
+    #[inline]
+    fn fetch_opcode(&mut self) -> u16 {
+        let byte1: u8 = self.memory[self.pc];
+        let byte2: u8 = self.memory[self.pc+1];
+
+        ((byte1 as u16) << 8) | (byte2 as u16)
+    }
+
+    fn get_x
 
 }
+
+
