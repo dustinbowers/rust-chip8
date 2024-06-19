@@ -37,6 +37,28 @@ enum DrawMethod {
     REAL,
 }
 
+const KEY_MAP: &[(KeyCode, chip8::Key)] = &[
+    (KeyCode::Key1, chip8::Key::Key1),
+    (KeyCode::Key2, chip8::Key::Key2),
+    (KeyCode::Key3, chip8::Key::Key3),
+    (KeyCode::Key4, chip8::Key::C),
+
+    (KeyCode::Q, chip8::Key::Key4),
+    (KeyCode::W, chip8::Key::Key5),
+    (KeyCode::E, chip8::Key::Key6),
+    (KeyCode::R, chip8::Key::D),
+
+    (KeyCode::A, chip8::Key::Key7),
+    (KeyCode::S, chip8::Key::Key8),
+    (KeyCode::D, chip8::Key::Key9),
+    (KeyCode::F, chip8::Key::E),
+
+    (KeyCode::Z, chip8::Key::A),
+    (KeyCode::X, chip8::Key::Key0),
+    (KeyCode::C, chip8::Key::B),
+    (KeyCode::V, chip8::Key::F),
+];
+
 #[macroquad::main(window_conf)]
 async fn main() {
     const DRAW_METHOD: DrawMethod = DrawMethod::REAL;
@@ -101,12 +123,22 @@ async fn main() {
             let debug_x: f32 = 18.0;
             let debug_y: f32 = 18.0;
             let font_size: f32 = 20.0;
-            fn render_string(text: &str, x: f32, y: f32, size: f32) {
-                text.split("\n").enumerate().for_each(|(ind, line)| {
-                    draw_text(line, x, y + ((ind as f32 + 1.0) * size), size, ORANGE);
-                });
+
+            chip.get_state()
+                .split("\n")
+                .enumerate()
+                .for_each(|(ind, line)| {
+                draw_text(line, debug_x, debug_y + ((ind as f32 + 1.0) * font_size), font_size, ORANGE);
+            });
+        }
+
+        // Handle user input
+        chip.reset_key_state();
+        let keys_pressed = get_keys_down();
+        for (k, v) in KEY_MAP.iter() {
+            if keys_pressed.contains(k) {
+                chip.set_key_state(*v, true);
             }
-            render_string(&chip.get_state(), debug_x, debug_y, font_size);
         }
 
         // Run processor

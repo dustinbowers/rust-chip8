@@ -25,6 +25,26 @@ const FONT_SET: [u8; 80] = [
     0xF0, 0x80, 0xF0, 0x80, 0x80, // F
 ];
 
+#[derive(Debug, Copy, Clone, PartialEq, Hash, Eq)]
+pub enum Key {
+    Key0 = 0x0,
+    Key1,
+    Key2,
+    Key3,
+    Key4,
+    Key5,
+    Key6,
+    Key7,
+    Key8,
+    Key9,
+    A,
+    B,
+    C,
+    D,
+    E,
+    F,
+}
+
 #[derive(Debug)]
 pub struct Chip8 {
     screen: Arc<Mutex<Screen>>,
@@ -39,6 +59,8 @@ pub struct Chip8 {
     sp: u16,     // Stack pointer
     dt: u8,      // Delay timer
     st: u8,      // Sound timer
+
+    halt_for_input: bool,
 }
 
 impl Chip8 {
@@ -55,6 +77,7 @@ impl Chip8 {
             sp: 0,
             dt: 0,
             st: 0,
+            halt_for_input: false,
         };
         c.load_font();
         return c;
@@ -143,7 +166,9 @@ impl Chip8 {
             }
             0x7000 => {
                 // (7xkk) Add Vx, byte - Add byte to register
-                self.v[get_x!(opcode)] += get_kk!(opcode);
+                let v_x = &mut self.v[get_x!(opcode)];
+                let (s, _) =  v_x.overflowing_add(get_kk!(opcode));
+                *v_x = s;
             }
             0x8000 => {
                 //
@@ -297,8 +322,14 @@ impl Chip8 {
                     }
                     0x0A => {
                         // (Fx0A) - LD Vx, K
-                        loop {
-                            println!("waiting for input");
+                        // Halt for input
+                        match self.halt_for_input {
+                            true => {
+                                self.pc -= 2;
+                            },
+                            false => {
+                                self.halt_for_input = true;
+                            }
                         }
                     }
                     0x15 => {
@@ -413,5 +444,24 @@ impl Chip8 {
             .join(" ");
         s = format!("{}\nStack: [{}]", s, stack);
         s
+    }
+
+    // pub fn key_press(&mut self, key: Key) {
+    //     self.keyboard[key as usize] = true;
+    // }
+    //
+    // pub fn key_release(&mut self, key: Key) {
+    //     self.keyboard[key as usize] = false;
+    // }
+    pub fn set_key_state(&mut self, key: Key, is_pressed: bool) {
+        let cur_state = &mut self.keyboard[key as usize];
+        if *cur_state != is_pressed {
+            self.halt_for_input = false;
+        }
+        *cur_state = is_pressed;
+    }
+
+    pub fn reset_key_state(&mut self) {
+        self.keyboard = [false; 16];
     }
 }

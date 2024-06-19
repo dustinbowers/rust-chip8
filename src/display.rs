@@ -22,7 +22,7 @@ impl Display {
                 let mut cur_val: i16 = self.pixels[ci][ri] as i16;
                 match *cell {
                     true => cur_val += 200,
-                    false => cur_val -= 15,
+                    false => cur_val -= 25,
                 }
                 self.pixels[ci][ri] = cur_val.clamp(0, 255) as u8;
             }
