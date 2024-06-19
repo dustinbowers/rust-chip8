@@ -52,7 +52,6 @@ pub struct Chip8 {
     stack: [u16; 16],
     keyboard: [bool; 16],
 
-    // schip_mode: bool,
     v: [u8; 16], // 16 8-bit registers (note VF is a carry-flag register)
     pc: u16,     // Program/Instruction counter
     i: u16,      // Index register
@@ -70,7 +69,6 @@ impl Chip8 {
             memory: [0u8; 4096],
             stack: [0u16; 16],
             keyboard: [false; 16],
-            // schip_mode: false,
             v: [0u8; 16],
             pc: 0x200,
             i: 0,
@@ -413,13 +411,14 @@ impl Chip8 {
     }
 
     // Should be called at a rate of 60Hz
-    pub fn tick_timers(&mut self) {
+    pub fn tick_timers(&mut self) -> (u8, u8) {
         if self.st > 0 {
             self.st -= 1;
         }
         if self.dt > 0 {
             self.dt -= 1
         }
+        (self.st, self.dt)
     }
 
     pub fn get_state(&self) -> String {

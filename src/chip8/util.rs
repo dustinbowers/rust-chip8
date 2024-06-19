@@ -37,6 +37,6 @@ macro_rules! get_kk {
 #[macro_export]
 macro_rules! invalid_opcode {
     ($opcode:expr) => {
-        panic!("Invalid opcode: {:#?}", $opcode)
+        panic!("Invalid opcode: {:#X}", $opcode)
     }
 }

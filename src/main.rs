@@ -1,5 +1,8 @@
+use macroquad::audio;
+use macroquad::audio::PlaySoundParams;
 use macroquad::prelude::*;
 use std::io::Read;
+use std::process::exit;
 use std::time::{Duration, Instant};
 use std::{fs, io};
 
@@ -42,17 +45,14 @@ const KEY_MAP: &[(KeyCode, chip8::Key)] = &[
     (KeyCode::Key2, chip8::Key::Key2),
     (KeyCode::Key3, chip8::Key::Key3),
     (KeyCode::Key4, chip8::Key::C),
-
     (KeyCode::Q, chip8::Key::Key4),
     (KeyCode::W, chip8::Key::Key5),
     (KeyCode::E, chip8::Key::Key6),
     (KeyCode::R, chip8::Key::D),
-
     (KeyCode::A, chip8::Key::Key7),
     (KeyCode::S, chip8::Key::Key8),
     (KeyCode::D, chip8::Key::Key9),
     (KeyCode::F, chip8::Key::E),
-
     (KeyCode::Z, chip8::Key::A),
     (KeyCode::X, chip8::Key::Key0),
     (KeyCode::C, chip8::Key::B),
@@ -66,8 +66,19 @@ async fn main() {
 
     // let filename = "./roms/programs/BC_test.ch8";
     // let filename = "./roms/programs/IBM Logo.ch8";
+    // let filename = "./roms/games/Breakout (Brix hack) [David Winter, 1997].ch8";
+    // let filename = "./roms/games/Cave.ch8";
     let filename = "./roms/games/Space Invaders [David Winter].ch8";
+
     let rom = load_rom_file(filename);
+
+    let boop = match audio::load_sound("sine.wav").await {
+        Ok(sound) => sound,
+        Err(err) => {
+            println!("Error loading sine.wav: {}", err);
+            exit(0);
+        }
+    };
 
     let rom = match rom {
         Ok(rom) => rom,
@@ -85,6 +96,8 @@ async fn main() {
     // Time per step at 700 Hz
     let step_duration = Duration::from_secs_f64(1.0 / 700.0);
     let mut last_step_time = Instant::now();
+
+    let mut playing_sound: bool = false;
 
     loop {
         display.update();
@@ -128,8 +141,14 @@ async fn main() {
                 .split("\n")
                 .enumerate()
                 .for_each(|(ind, line)| {
-                draw_text(line, debug_x, debug_y + ((ind as f32 + 1.0) * font_size), font_size, ORANGE);
-            });
+                    draw_text(
+                        line,
+                        debug_x,
+                        debug_y + ((ind as f32 + 1.0) * font_size),
+                        font_size,
+                        ORANGE,
+                    );
+                });
         }
 
         // Handle user input
@@ -152,6 +171,19 @@ async fn main() {
         }
 
         next_frame().await;
-        chip.tick_timers(); // Tick timers at 60Hz
+        let (st, _) = chip.tick_timers(); // Tick timers at 60Hz
+
+        // Handle audio
+        if !playing_sound && st > 0 {
+            playing_sound = true;
+            let params = PlaySoundParams {
+                looped: true,
+                volume: 1.0,
+            };
+            audio::play_sound(&boop, params);
+        } else {
+            playing_sound = false;
+            audio::stop_sound(&boop);
+        }
     }
 }
