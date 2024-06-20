@@ -1,6 +1,6 @@
-use macroquad::audio;
-use macroquad::audio::PlaySoundParams;
+use macroquad::audio::{play_sound, play_sound_once, PlaySoundParams, Sound};
 use macroquad::prelude::*;
+use macroquad::{audio, Error};
 use std::io::Read;
 use std::process::exit;
 use std::time::{Duration, Instant};
@@ -62,7 +62,7 @@ const KEY_MAP: &[(KeyCode, chip8::Key)] = &[
 #[macroquad::main(window_conf)]
 async fn main() {
     const DRAW_METHOD: DrawMethod = DrawMethod::REAL;
-    let debug_draw: bool = true;
+    let mut debug_draw: bool = true;
 
     // let filename = "./roms/programs/BC_test.ch8";
     // let filename = "./roms/programs/IBM Logo.ch8";
@@ -72,7 +72,8 @@ async fn main() {
 
     let rom = load_rom_file(filename);
 
-    let boop = match audio::load_sound("sine.wav").await {
+    let mut boop: Sound;
+    boop = match audio::load_sound("sine.wav").await {
         Ok(sound) => sound,
         Err(err) => {
             println!("Error loading sine.wav: {}", err);
@@ -96,8 +97,6 @@ async fn main() {
     // Time per step at 700 Hz
     let step_duration = Duration::from_secs_f64(1.0 / 700.0);
     let mut last_step_time = Instant::now();
-
-    let mut playing_sound: bool = false;
 
     loop {
         display.update();
@@ -159,6 +158,9 @@ async fn main() {
                 chip.set_key_state(*v, true);
             }
         }
+        if is_key_pressed(KeyCode::I) {
+            debug_draw = !debug_draw;
+        }
 
         // Run processor
         // Calculate the number of steps to perform based on elapsed time
@@ -174,16 +176,8 @@ async fn main() {
         let (st, _) = chip.tick_timers(); // Tick timers at 60Hz
 
         // Handle audio
-        if !playing_sound && st > 0 {
-            playing_sound = true;
-            let params = PlaySoundParams {
-                looped: true,
-                volume: 1.0,
-            };
-            audio::play_sound(&boop, params);
-        } else {
-            playing_sound = false;
-            audio::stop_sound(&boop);
+        if st == 1 {
+            play_sound_once(&boop);
         }
     }
 }

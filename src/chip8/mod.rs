@@ -412,13 +412,15 @@ impl Chip8 {
 
     // Should be called at a rate of 60Hz
     pub fn tick_timers(&mut self) -> (u8, u8) {
+        let st = self.st;
+        let dt = self.dt;
         if self.st > 0 {
             self.st -= 1;
         }
         if self.dt > 0 {
             self.dt -= 1
         }
-        (self.st, self.dt)
+        (st, dt)
     }
 
     pub fn get_state(&self) -> String {
