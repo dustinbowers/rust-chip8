@@ -1,16 +1,15 @@
-#[macro_export]
-macro_rules! get_nnn {
-    ($opcode:expr) => {
-        $opcode & 0x0FFF
-    };
-}
+/*
+    CHIP8 opcodes are always exactly 2 bytes.
+    These macros make it easy to examine specific parts of the opcode.
+    Below is a diagram that shows what each macro is extracting
 
-#[macro_export]
-macro_rules! get_n {
-    ($opcode:expr) => {
-        $opcode & 0xF
-    };
-}
+    byte1     byte2
+	0000 0000 0000 0000
+	     x--- y--- n---
+	     nnn-----------
+	          kk-------
+ */
+
 
 #[macro_export]
 macro_rules! get_x {
@@ -23,6 +22,19 @@ macro_rules! get_x {
 macro_rules! get_y {
     ($opcode:expr) => {
         (($opcode >> 4) & 0x0F) as usize
+    };
+}
+#[macro_export]
+macro_rules! get_n {
+    ($opcode:expr) => {
+        $opcode & 0xF
+    };
+}
+
+#[macro_export]
+macro_rules! get_nnn {
+    ($opcode:expr) => {
+        $opcode & 0x0FFF
     };
 }
 
