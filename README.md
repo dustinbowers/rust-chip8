@@ -1,6 +1,6 @@
 # CHIP-8 Emulator
 
-A basic emulation of [CHIP8](https://en.wikipedia.org/wiki/CHIP-8)
+A basic emulation of [CHIP8](https://en.wikipedia.org/wiki/CHIP-8) using Macroquad for rendering
 
 ## References
 
