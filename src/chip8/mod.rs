@@ -217,12 +217,12 @@ impl Chip8 {
                         self.v[x] = v_x >> 1;
                     }
                     0x7 => {
-                        // (8xy7) - SUBN Vx, Vy - Compute V_x = V_y - V_x, set underflow
+                        // (8xy7) - SUBN Vx, Vy - Compute V_x = V_y - V_x, set borrow-flag in VF
                         let x = get_x!(opcode);
                         let y = get_y!(opcode);
-                        let (s, underflow) = self.v[y].overflowing_sub(self.v[x]);
+                        let (s, borrow) = self.v[y].overflowing_sub(self.v[x]);
                         self.v[x] = s;
-                        self.v[0xF] = match underflow {
+                        self.v[0xF] = match borrow {
                             true => 0,
                             false => 1,
                         };

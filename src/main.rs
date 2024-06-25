@@ -62,6 +62,7 @@ const KEY_MAP: &[(KeyCode, chip8::Key)] = &[
 #[macroquad::main(window_conf)]
 async fn main() {
     const DRAW_METHOD: DrawMethod = DrawMethod::REAL;
+    let mut pause_emulation: bool = false;
     let mut debug_draw: bool = true;
 
     // let filename = "./roms/programs/BC_test.ch8";
@@ -99,7 +100,6 @@ async fn main() {
     let mut last_step_time = Instant::now();
 
     loop {
-        display.update();
         clear_background(GRAY);
         match DRAW_METHOD {
             DrawMethod::RAW => {
@@ -130,6 +130,21 @@ async fn main() {
             }
         }
 
+        if pause_emulation {
+            let pause_size = 48.0;
+            let pause_str = "[PAUSED]";
+            let x = WINDOW_WIDTH as f32 / 2.0 - (pause_size / 2.0 * pause_str.len() as f32 / 2.0);
+            let y = WINDOW_HEIGHT as f32 / 2.0;
+            draw_rectangle(
+                x,
+                y - (pause_size * 0.75),
+                pause_size * (pause_str.len() - 1) as f32 / 2.0,
+                pause_size,
+                RED,
+            );
+            draw_text(&pause_str, x, y, pause_size, BLACK);
+        }
+
         // Draw debug if enabled
         if debug_draw {
             let debug_x: f32 = 18.0;
@@ -158,26 +173,47 @@ async fn main() {
                 chip.set_key_state(*v, true);
             }
         }
+
+        // Toggle debug output
         if is_key_pressed(KeyCode::I) {
             debug_draw = !debug_draw;
         }
+        // Pause / Unpause updates
+        if is_key_pressed(KeyCode::P) {
+            pause_emulation = match pause_emulation {
+                true => {
+                    // We have to reinitialize the last step time so that the CPU doesn't
+                    // try to 'catch up' for all the cycles that should have happened
+                    // during the paused period
+                    last_step_time = Instant::now();
+                    false
+                }
+                false => true,
+            };
+        }
 
-        // Run processor
-        // Calculate the number of steps to perform based on elapsed time
-        let now = Instant::now();
-        let mut elapsed = now - last_step_time;
-        while elapsed >= step_duration {
-            _ = chip.step();
-            elapsed -= step_duration;
-            last_step_time += step_duration;
+        if pause_emulation == false {
+            // Run processor
+            // Calculate the number of steps to perform based on elapsed time
+            let now = Instant::now();
+            let mut elapsed = now - last_step_time;
+            while elapsed >= step_duration {
+                _ = chip.step();
+                elapsed -= step_duration;
+                last_step_time += step_duration;
+            }
+
+            display.update();
+
+            let (st, _) = chip.tick_timers(); // Tick timers at 60Hz
+
+            // Handle audio
+            if st == 1 {
+                // NOTE: technically the 'beep' should play continuously while ST > 0
+                play_sound_once(&boop);
+            }
         }
 
         next_frame().await;
-        let (st, _) = chip.tick_timers(); // Tick timers at 60Hz
-
-        // Handle audio
-        if st == 1 {
-            play_sound_once(&boop);
-        }
     }
 }
