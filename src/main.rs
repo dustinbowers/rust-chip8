@@ -111,9 +111,6 @@ async fn main() {
     let mut display = display::Display::new(chip.get_screen());
 
     // Time per step at 700 Hz
-    // let step_duration = Duration::from_secs_f64(1.0 / 700.0);
-    // let mut last_step_time = Instant::now();
-
     let step_duration = 1.0 / 700.0;
     let mut last_step_time = get_time();
 
