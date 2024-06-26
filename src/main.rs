@@ -1,10 +1,15 @@
-use macroquad::audio::{play_sound, play_sound_once, PlaySoundParams, Sound};
 use macroquad::prelude::*;
-use macroquad::{audio, Error};
-use std::io::Read;
-use std::process::exit;
-use std::time::{Duration, Instant};
-use std::{fs, io};
+use macroquad::{audio};
+
+#[cfg(not(target_arch = "wasm32"))]
+use {
+    std::{fs, io},
+    std::io::Read,
+};
+#[cfg(feature = "audio")]
+use {
+    macroquad::audio::{Sound, play_sound_once}
+};
 
 mod chip8;
 mod display;
@@ -26,7 +31,10 @@ fn window_conf() -> Conf {
     }
 }
 
+#[allow(dead_code)]
+#[cfg(not(target_arch = "wasm32"))]
 fn load_rom_file(filename: &str) -> io::Result<Vec<u8>> {
+    // TODO: might use this later
     let mut file = fs::File::open(filename)?;
     let mut buffer = Vec::new();
 
@@ -69,35 +77,42 @@ async fn main() {
     // let filename = "./roms/programs/IBM Logo.ch8";
     // let filename = "./roms/games/Breakout (Brix hack) [David Winter, 1997].ch8";
     // let filename = "./roms/games/Cave.ch8";
-    let filename = "./roms/games/Space Invaders [David Winter].ch8";
 
-    let rom = load_rom_file(filename);
+    // let filename = "./roms/games/Space Invaders [David Winter].ch8";
+    // let rom = load_rom_file(filename);
+    // let rom = match rom {
+    //     Ok(rom) => rom,
+    //     Err(e) => {
+    //         println!("Error loading file: {:#?}", e);
+    //         return;
+    //     }
+    // };
 
-    let mut boop: Sound;
-    boop = match audio::load_sound("sine.wav").await {
-        Ok(sound) => sound,
-        Err(err) => {
-            println!("Error loading sine.wav: {}", err);
-            exit(0);
-        }
-    };
+    let space_invaders = include_bytes!("../roms/games/Space Invaders [David Winter].ch8");
+    let rom = Vec::<u8>::from(space_invaders);
 
-    let rom = match rom {
-        Ok(rom) => rom,
-        Err(e) => {
-            println!("Error loading file: {:#?}", e);
-            return;
-        }
-    };
-    println!("Loaded {} bytes from file: {}", rom.len(), filename);
+    let boop: Sound;
+    #[cfg(feature = "audio")]
+    {
+        boop = match audio::load_sound_from_bytes(include_bytes!("../sine.wav")).await {
+            Ok(sound) => sound,
+            Err(err) => {
+                println!("Error loading sine.wav: {}", err);
+                return;
+            }
+        };
+    }
+
+
+    // println!("Loaded {} bytes from file: {}", rom.len(), filename);
 
     let mut chip = Chip8::new();
     _ = chip.load_rom(rom, 0x200);
     let mut display = display::Display::new(chip.get_screen());
 
     // Time per step at 700 Hz
-    let step_duration = Duration::from_secs_f64(1.0 / 700.0);
-    let mut last_step_time = Instant::now();
+    let step_duration = 1.0 / 700.0;
+    let mut last_step_time = get_time();
 
     loop {
         clear_background(GRAY);
@@ -185,7 +200,7 @@ async fn main() {
                     // We have to reinitialize the last step time so that the CPU doesn't
                     // try to 'catch up' for all the cycles that should have happened
                     // during the paused period
-                    last_step_time = Instant::now();
+                    last_step_time = get_time();
                     false
                 }
                 false => true,
@@ -195,7 +210,7 @@ async fn main() {
         if pause_emulation == false {
             // Run processor
             // Calculate the number of steps to perform based on elapsed time
-            let now = Instant::now();
+            let now = get_time();
             let mut elapsed = now - last_step_time;
             while elapsed >= step_duration {
                 _ = chip.step();
@@ -210,7 +225,10 @@ async fn main() {
             // Handle audio
             if st == 1 {
                 // NOTE: technically the 'beep' should play continuously while ST > 0
-                play_sound_once(&boop);
+                #[cfg(feature = "audio")]
+                {
+                    play_sound_once(&boop);
+                }
             }
         }
 

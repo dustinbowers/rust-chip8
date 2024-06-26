@@ -3,5 +3,9 @@ name = "chip8"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default=["audio"]
+audio = []
+
 [dependencies]
 macroquad = { version ="0.4.8", features = ["audio"]}
