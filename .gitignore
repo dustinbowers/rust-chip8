@@ -2,3 +2,4 @@
 .idea
 target/
 chip8.wasm
+*.ch8

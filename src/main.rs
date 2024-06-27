@@ -1,25 +1,47 @@
+use macroquad::audio;
 use macroquad::prelude::*;
-use macroquad::{audio};
 
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
 #[cfg(not(target_arch = "wasm32"))]
 use {
-    std::{fs, io},
     std::io::Read,
+    std::{fs, io},
 };
+
 #[cfg(feature = "audio")]
-use {
-    macroquad::audio::{Sound, play_sound_once}
-};
+use macroquad::audio::{play_sound_once, Sound};
 
 mod chip8;
 mod display;
-
 use chip8::Chip8;
 
 const WINDOW_HEIGHT: i32 = 256;
 const WINDOW_WIDTH: i32 = 512;
 const PIXEL_WIDTH: f32 = WINDOW_WIDTH as f32 / 64.0;
 const PIXEL_HEIGHT: f32 = WINDOW_HEIGHT as f32 / 32.0;
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = window)]
+    fn get_byte_array() -> js_sys::Uint8Array;
+}
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn fetch_byte_array_from_js() -> Vec<u8> {
+    let js_array = crate::get_byte_array();
+    js_array.to_vec()
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn fetch_rom_bytes() -> Vec<u8> {
+    fetch_byte_array_from_js()
+}
+#[cfg(not(target_arch = "wasm32"))]
+pub fn fetch_rom_bytes() -> Vec<u8> {
+    include_bytes!("../roms/games/Space Invaders [David Winter].ch8").to_vec()
+}
 
 fn window_conf() -> Conf {
     Conf {
@@ -73,28 +95,12 @@ async fn main() {
     let mut pause_emulation: bool = false;
     let mut debug_draw: bool = true;
 
-    // let filename = "./roms/programs/BC_test.ch8";
-    // let filename = "./roms/programs/IBM Logo.ch8";
-    // let filename = "./roms/games/Breakout (Brix hack) [David Winter, 1997].ch8";
-    // let filename = "./roms/games/Cave.ch8";
-
-    // let filename = "./roms/games/Space Invaders [David Winter].ch8";
-    // let rom = load_rom_file(filename);
-    // let rom = match rom {
-    //     Ok(rom) => rom,
-    //     Err(e) => {
-    //         println!("Error loading file: {:#?}", e);
-    //         return;
-    //     }
-    // };
-
-    let space_invaders = include_bytes!("../roms/games/Space Invaders [David Winter].ch8");
-    let rom = Vec::<u8>::from(space_invaders);
+    let rom = fetch_rom_bytes();
 
     let boop: Sound;
     #[cfg(feature = "audio")]
     {
-        boop = match audio::load_sound_from_bytes(include_bytes!("../sine.wav")).await {
+        boop = match audio::load_sound_from_bytes(include_bytes!("sine.wav")).await {
             Ok(sound) => sound,
             Err(err) => {
                 println!("Error loading sine.wav: {}", err);
@@ -102,9 +108,6 @@ async fn main() {
             }
         };
     }
-
-
-    // println!("Loaded {} bytes from file: {}", rom.len(), filename);
 
     let mut chip = Chip8::new();
     _ = chip.load_rom(rom, 0x200);
