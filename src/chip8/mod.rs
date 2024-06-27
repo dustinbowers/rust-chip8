@@ -6,6 +6,8 @@ mod util;
 
 pub type Screen = [[bool; 64]; 32];
 
+const FONT_OFFSET: usize = 0x050;
+
 const FONT_SET: [u8; 80] = [
     0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
     0x20, 0x60, 0x20, 0x20, 0x70, // 1
@@ -25,7 +27,7 @@ const FONT_SET: [u8; 80] = [
     0xF0, 0x80, 0xF0, 0x80, 0x80, // F
 ];
 
-#[derive(Debug, Copy, Clone, PartialEq, Hash, Eq)]
+#[derive(Copy, Clone, PartialEq, Hash, Eq)]
 pub enum Key {
     Key0 = 0x0,
     Key1,
@@ -45,7 +47,6 @@ pub enum Key {
     F,
 }
 
-#[derive(Debug)]
 pub struct Chip8 {
     screen: Arc<Mutex<Screen>>,
     memory: [u8; 4096],
@@ -81,9 +82,7 @@ impl Chip8 {
         return c;
     }
 
-    #[inline]
     fn load_font(&mut self) {
-        const FONT_OFFSET: usize = 0x050;
         for (i, v) in FONT_SET.iter().enumerate() {
             self.memory[i + FONT_OFFSET] = *v;
         }
@@ -102,6 +101,78 @@ impl Chip8 {
 
     pub fn get_screen(&self) -> Arc<Mutex<Screen>> {
         Arc::clone(&self.screen)
+    }
+
+    #[allow(dead_code)]
+    fn inspect_opcode(&self, opcode: u16) {
+        print!(
+            "Opcode: {:#06x}, PC: {}, SP: {}, I: {}, ",
+            opcode, self.pc, self.sp, self.i
+        );
+        print!("V [");
+        for i in 0..16 {
+            print!("{} ", self.v[i as usize])
+        }
+        print!("] ");
+        println!();
+    }
+
+    // Should be called at a rate of 60Hz
+    pub fn tick_timers(&mut self) -> (u8, u8) {
+        let st = self.st;
+        let dt = self.dt;
+        if self.st > 0 {
+            self.st -= 1;
+        }
+        if self.dt > 0 {
+            self.dt -= 1
+        }
+        (st, dt)
+    }
+
+    pub fn get_state(&self) -> String {
+        let mut s = format!(
+            "PC: {:#X}\nSP: {:#X}\n I: {:#X}\nDT: {:#X}\nST: {:#X}",
+            self.pc, self.sp, self.i, self.dt, self.st
+        );
+
+        let registers = self
+            .v
+            .iter()
+            .map(|x| x.to_string())
+            .collect::<Vec<String>>()
+            .join(" ");
+        s = format!("{}\nV: [{}]", s, registers);
+
+        let stack = self
+            .stack
+            .iter()
+            .map(|x| x.to_string())
+            .collect::<Vec<String>>()
+            .join(" ");
+        s = format!("{}\nStack: [{}]", s, stack);
+        s
+    }
+
+    pub fn set_key_state(&mut self, key: Key, is_pressed: bool) {
+        let cur_state = &mut self.keyboard[key as usize];
+        if *cur_state != is_pressed {
+            self.halt_for_input = false;
+        }
+        *cur_state = is_pressed;
+    }
+
+    pub fn reset_key_state(&mut self) {
+        self.keyboard = [false; 16];
+    }
+
+    #[inline]
+    fn fetch_opcode(&mut self) -> u16 {
+        let byte1: u8 = self.memory[self.pc as usize];
+        let byte2: u8 = self.memory[self.pc as usize + 1];
+
+        self.pc += 2;
+        ((byte1 as u16) << 8) | (byte2 as u16)
     }
 
     pub fn step(&mut self) -> Result<i32, ()> {
@@ -383,79 +454,6 @@ impl Chip8 {
                 panic!("Invalid opcode: {:#?} ", opcode)
             }
         }
-
         Ok(1)
-    }
-
-    #[inline]
-    fn fetch_opcode(&mut self) -> u16 {
-        let byte1: u8 = self.memory[self.pc as usize];
-        let byte2: u8 = self.memory[self.pc as usize + 1];
-
-        self.pc += 2;
-        ((byte1 as u16) << 8) | (byte2 as u16)
-    }
-
-    #[allow(dead_code)]
-    fn inspect_opcode(&self, opcode: u16) {
-        print!(
-            "Opcode: {:#06x}, PC: {}, SP: {}, I: {}, ",
-            opcode, self.pc, self.sp, self.i
-        );
-        print!("V [");
-        for i in 0..16 {
-            print!("{} ", self.v[i as usize])
-        }
-        print!("] ");
-        println!();
-    }
-
-    // Should be called at a rate of 60Hz
-    pub fn tick_timers(&mut self) -> (u8, u8) {
-        let st = self.st;
-        let dt = self.dt;
-        if self.st > 0 {
-            self.st -= 1;
-        }
-        if self.dt > 0 {
-            self.dt -= 1
-        }
-        (st, dt)
-    }
-
-    pub fn get_state(&self) -> String {
-        let mut s = format!(
-            "PC: {:#X}\nSP: {:#X}\n I: {:#X}\nDT: {:#X}\nST: {:#X}",
-            self.pc, self.sp, self.i, self.dt, self.st
-        );
-
-        let registers = self
-            .v
-            .iter()
-            .map(|x| x.to_string())
-            .collect::<Vec<String>>()
-            .join(" ");
-        s = format!("{}\nV: [{}]", s, registers);
-
-        let stack = self
-            .stack
-            .iter()
-            .map(|x| x.to_string())
-            .collect::<Vec<String>>()
-            .join(" ");
-        s = format!("{}\nStack: [{}]", s, stack);
-        s
-    }
-
-    pub fn set_key_state(&mut self, key: Key, is_pressed: bool) {
-        let cur_state = &mut self.keyboard[key as usize];
-        if *cur_state != is_pressed {
-            self.halt_for_input = false;
-        }
-        *cur_state = is_pressed;
-    }
-
-    pub fn reset_key_state(&mut self) {
-        self.keyboard = [false; 16];
     }
 }
