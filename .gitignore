@@ -1,5 +1,5 @@
 .DS_Store
 .idea
 target/
-chip8.wasm
+*.wasm
 *.ch8
