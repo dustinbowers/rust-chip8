@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 #[macro_use]
 mod util;
 
-pub type Screen = [[bool; 64]; 32];
+pub type Screen = Vec<Vec<bool>>;
 
 const FONT_OFFSET: usize = 0x050;
 
@@ -49,11 +49,11 @@ pub enum Key {
 
 pub struct Chip8 {
     screen: Arc<Mutex<Screen>>,
-    memory: [u8; 4096],
-    stack: [u16; 16],
-    keyboard: [bool; 16],
+    memory: Vec<u8>, // [u8; 4096],
+    stack: Vec<u16>, // [u16; 16],
+    keyboard: Vec<bool>, // [bool; 16],
 
-    v: [u8; 16], // 16 8-bit registers (note VF is a carry-flag register)
+    v: Vec<u8>,  // 16 8-bit registers (note VF is a carry-flag register) = [u8; 16]
     pc: u16,     // Program/Instruction counter
     i: u16,      // Index register
     sp: u16,     // Stack pointer
@@ -66,11 +66,11 @@ pub struct Chip8 {
 impl Chip8 {
     pub fn new() -> Self {
         let mut c = Self {
-            screen: Arc::new(Mutex::new([[false; 64]; 32])),
-            memory: [0u8; 4096],
-            stack: [0u16; 16],
-            keyboard: [false; 16],
-            v: [0u8; 16],
+            screen: Arc::new(Mutex::new(vec![vec![false; 64]; 32])),
+            memory: vec![0u8; 4096],
+            stack: vec![0u16; 16],
+            keyboard: vec![false; 16],
+            v: vec![0u8; 16],
             pc: 0x200,
             i: 0,
             sp: 0,
@@ -163,7 +163,7 @@ impl Chip8 {
     }
 
     pub fn reset_key_state(&mut self) {
-        self.keyboard = [false; 16];
+        self.keyboard = vec![false; 16];
     }
 
     #[inline]
