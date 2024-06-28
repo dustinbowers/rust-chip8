@@ -40,6 +40,12 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
 }
 #[cfg(not(target_arch = "wasm32"))]
 pub fn fetch_rom_bytes() -> Vec<u8> {
+    // Test CPU
+    // include_bytes!("../roms/programs/BC_test.ch8").to_vec()
+
+    // TODO: Determine if this rom is broken or if an opcode isn't correct
+    // include_bytes!("../roms/programs/Keypad Test [Hap, 2006].ch8").to_vec()
+
     include_bytes!("../roms/games/Space Invaders [David Winter].ch8").to_vec()
 }
 
