@@ -136,4 +136,5 @@ sed -i '' "s/imports\['env'\] = __wbg_star0;/return imports.wbg\;/" dist/"$PROJE
 sed -i '' "s/const imports = __wbg_get_imports();/return __wbg_get_imports();/" dist/"$PROJECT_NAME".js
 #
 # Create index from the HTML variable
-#echo "$HTML" >dist/index.html
+
+#echo "$HTML" >dist/emulator.html
