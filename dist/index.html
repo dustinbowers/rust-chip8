@@ -29,53 +29,54 @@
     </style>
 </head>
 <body>
-    <canvas id="glcanvas" tabindex='1' hidden></canvas>
-    <script src="https://not-fl3.github.io/miniquad-samples/mq_js_bundle.js"></script>
-    <script type="module">
-        import init, { set_wasm } from "./chip8.js";
+<canvas id="glcanvas" tabindex='1' hidden></canvas>
+<script src="https://not-fl3.github.io/miniquad-samples/mq_js_bundle.js"></script>
+<script type="module">
+    import init, { set_wasm } from "./chip8.js";
 
-        let ROM_DATA = "";
-        window.get_byte_array = function () {
-            return ROM_DATA;
-        }
-        function reset_chip8() {
-            load("chip8_bg.wasm");
-        }
-        window.play_rom = function(dest_url) {
-            let oReq = new XMLHttpRequest()
-            oReq.open("GET", dest_url, true)
-            oReq.responseType = "arraybuffer"
+    let rom_url = "/chip8/roms/games/Space%20Invaders%20%5BDavid%20Winter%5D.ch8";
+    let ROM_DATA = "";
+    window.get_byte_array = function () {
+        return ROM_DATA;
+    }
+    function reset_chip8() {
+        load("chip8_bg.wasm");
+    }
+    window.play_rom = function(src_url) {
+        let oReq = new XMLHttpRequest()
+        oReq.open("GET", src_url, true)
+        oReq.responseType = "arraybuffer"
 
-            oReq.onload = function (oEvent) {
-                const arrayBuffer = oReq.response
-                if (arrayBuffer) {
-                    ROM_DATA = new Uint8Array(arrayBuffer);
-                    reset_chip8();
-                }
+        oReq.onload = function (oEvent) {
+            const arrayBuffer = oReq.response
+            if (arrayBuffer) {
+                ROM_DATA = new Uint8Array(arrayBuffer);
+                reset_chip8();
             }
-            oReq.send(null)
         }
-        async function impl_run() {
-            let wbg = await init();
-            miniquad_add_plugin({
-                register_plugin: (a) => {
-                    a.wbg = wbg;
-                },
-                on_init: () => set_wasm(wasm_exports),
-                version: "0.0.1",
-                name: "wbg",
-            });
-            play_rom("./Space%20Invaders%20%5BDavid%20Winter%5D.ch8");
-        }
-        window.run = function() {
-            document.getElementById("run-container").remove();
-            document.getElementById("glcanvas").removeAttribute("hidden");
-            document.getElementById("glcanvas").focus();
-            impl_run();
-        }
-    </script>
-    <div id="run-container">
-        <button onclick="run()">Run Game</button>
-    </div>
+        oReq.send(null)
+    }
+    async function impl_run() {
+        let wbg = await init();
+        miniquad_add_plugin({
+            register_plugin: (a) => {
+                a.wbg = wbg;
+            },
+            on_init: () => set_wasm(wasm_exports),
+            version: "0.0.1",
+            name: "wbg",
+        });
+        play_rom(rom_url);
+    }
+    window.run = function() {
+        document.getElementById("run-container").remove();
+        document.getElementById("glcanvas").removeAttribute("hidden");
+        document.getElementById("glcanvas").focus();
+        impl_run();
+    }
+</script>
+<div id="run-container">
+    <button onclick="run()">Run Game</button>
+</div>
 </body>
 </html>
