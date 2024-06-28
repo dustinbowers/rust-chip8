@@ -1,4 +1,4 @@
-.PHONY: default build release wasm wasm-release build-test-web
+.PHONY: default build release wasm wasm-release web-server build-test-web
 
 PACKAGE_NAME = chip8
 TARGET_DIR := ./target
