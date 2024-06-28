@@ -346,8 +346,8 @@ impl Chip8 {
                     let sprite_byte = self.memory[(sprite_offset + byte_ind as u16) as usize];
                     for j in 0..8 {
                         let bit = (sprite_byte >> j) & 0x1;
-                        let screen_x = (col + (7 - j)) % 64;
-                        let screen_y = (row + byte_ind) % 32;
+                        let screen_x = ((col as u16 + (7 - j)) % 64) as u8;
+                        let screen_y = ((row as u16 + byte_ind as u16) % 32) as u8;
 
                         let mut screen_writer = self.screen.lock().unwrap();
                         let curr = &mut screen_writer[screen_y as usize][screen_x as usize];
