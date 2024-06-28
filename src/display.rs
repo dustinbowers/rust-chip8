@@ -3,14 +3,14 @@ use std::sync::{Arc, Mutex};
 
 pub struct Display {
     pub screen: Arc<Mutex<chip8::Screen>>,
-    pub pixels: [[u8; 64]; 32],
+    pub pixels: Vec<Vec<u8>>,
 }
 
 impl Display {
     pub fn new(screen: Arc<Mutex<chip8::Screen>>) -> Display {
         Display {
             screen,
-            pixels: [[0u8; 64]; 32],
+            pixels: vec![vec![0u8; 64]; 32],
         }
     }
 
