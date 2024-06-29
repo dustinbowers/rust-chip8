@@ -5,6 +5,9 @@ use std::sync::{Arc, Mutex};
 mod util;
 pub mod types;
 
+pub const DISPLAY_ROWS: usize = 64;
+pub const DISPLAY_COLS: usize = 128;
+
 pub struct Chip8 {
     screen: Arc<Mutex<types::Screen>>,
     memory: Vec<u8>,     // [u8; 4096],
@@ -12,7 +15,7 @@ pub struct Chip8 {
     keyboard: Vec<bool>, // [bool; 16],
 
     v: Vec<u8>,   // 16 8-bit registers (note VF is a carry-flag register) = [u8; 16]
-    rpl: Vec<u8>, // 8 8-bit additional "Register and Process Logic" flags in Super-Chip
+    rpl: Vec<u8>, // 8 8-bit additional RPL flags in Super-Chip
     pc: u16,      // Program/Instruction counter
     i: u16,       // Index register
     sp: u16,      // Stack pointer
@@ -20,13 +23,14 @@ pub struct Chip8 {
     st: u8,       // Sound timer
 
     super_chip_enabled: bool,
+    hires_mode: bool,
     halt_for_input: bool,
 }
 
 impl Chip8 {
     pub fn new() -> Self {
         let mut c = Self {
-            screen: Arc::new(Mutex::new(vec![vec![false; 64]; 32])),
+            screen: Arc::new(Mutex::new(vec![vec![false; DISPLAY_COLS]; DISPLAY_ROWS])),
             memory: vec![0u8; 4096],
             stack: vec![0u16; 16],
             keyboard: vec![false; 16],
@@ -38,6 +42,7 @@ impl Chip8 {
             dt: 0,
             st: 0,
             super_chip_enabled: true,
+            hires_mode: false,
             halt_for_input: false,
         };
         c.load_font();
@@ -118,7 +123,7 @@ impl Chip8 {
 
     pub fn set_key_state(&mut self, key: types::Key, is_pressed: bool) {
         let cur_state = &mut self.keyboard[key as usize];
-        if *cur_state != is_pressed {
+        if *cur_state == is_pressed {
             self.halt_for_input = false;
         }
         *cur_state = is_pressed;
@@ -147,7 +152,13 @@ impl Chip8 {
                     0x00C0..=0x00CF => {
                         // 00CN*    Scroll display N lines down
                         ensure_super_chip!(self.super_chip_enabled);
-                        todo!();
+                        let mut screen_writer = self.screen.lock().unwrap();
+                        let n = get_n!(opcode) as usize;
+
+                        screen_writer.rotate_right(n);
+                        for i in 0..DISPLAY_ROWS {
+                            screen_writer[i] = vec![false; DISPLAY_COLS];
+                        }
                     }
                     0x00E0 => {
                         // CLS
@@ -166,12 +177,24 @@ impl Chip8 {
                     0x00FB => {
                         // 00FB*    Scroll display 4 pixels right
                         ensure_super_chip!(self.super_chip_enabled);
-                        todo!();
+                        let mut screen_writer = self.screen.lock().unwrap();
+                        for row in 0..DISPLAY_ROWS {
+                            screen_writer[row].rotate_right(4);
+                            for c in 0..4 {
+                                screen_writer[row][c] = false;
+                            }
+                        }
                     }
                     0x00FC => {
                         // 00FC*    Scroll display 4 pixels left
                         ensure_super_chip!(self.super_chip_enabled);
-                        todo!();
+                        let mut screen_writer = self.screen.lock().unwrap();
+                        for row in 0..DISPLAY_ROWS {
+                            screen_writer[row].rotate_left(4);
+                            for c in DISPLAY_COLS-4..DISPLAY_COLS {
+                                screen_writer[row][c] = false;
+                            }
+                        }
                     }
                     0x00FD => {
                         // 00FD*    Exit CHIP interpreter
@@ -181,12 +204,12 @@ impl Chip8 {
                     0x00FE => {
                         // 00FE*    Disable extended screen mode
                         ensure_super_chip!(self.super_chip_enabled);
-                        todo!();
+                        self.hires_mode = false;
                     }
                     0x00FF => {
                         // 00FF*    Enable extended screen mode for full-screen graphics
                         ensure_super_chip!(self.super_chip_enabled);
-                        todo!();
+                        self.hires_mode = true;
                     }
                     _ => {
                         invalid_opcode!(opcode)
@@ -336,22 +359,49 @@ impl Chip8 {
                 self.v[0xF] = 0;
                 for byte_ind in 0..n {
                     let sprite_byte = self.memory[(sprite_offset + byte_ind as u16) as usize];
-                    for j in 0..8 {
-                        let bit = (sprite_byte >> j) & 0x1;
-                        let screen_x = ((col as u16 + (7 - j)) % 64) as u8;
-                        let screen_y = ((row as u16 + byte_ind as u16) % 32) as u8;
+                    match self.hires_mode {
+                        true => {
+                            for j in 0..8 {
+                                let bit = (sprite_byte >> j) & 0x1;
+                                let screen_x = ((col as u16 + (7 - j)) % DISPLAY_COLS as u16) as u8;
+                                let screen_y = ((row as u16 + byte_ind as u16) % DISPLAY_ROWS as u16) as u8;
 
-                        let mut screen_writer = self.screen.lock().unwrap();
-                        let curr = &mut screen_writer[screen_y as usize][screen_x as usize];
-                        if bit == 1 && *curr {
-                            self.v[0xF] = 1;
+                                let mut screen_writer = self.screen.lock().unwrap();
+                                let curr = &mut screen_writer[screen_y as usize][screen_x as usize];
+                                if bit == 1 && *curr {
+                                    self.v[0xF] = 1;
+                                }
+                                let curr_val = match curr {
+                                    true => 1,
+                                    false => 0,
+                                };
+                                *curr = (curr_val ^ bit) == 1;
+                            }
                         }
-                        let curr_val = match curr {
-                            true => 1,
-                            false => 0,
-                        };
-                        *curr = (curr_val ^ bit) == 1;
-                    }
+                        false => {
+                            for j in 0..8 {
+                                let bit = (sprite_byte >> j) & 0x1;
+                                let screen_x = ((col as u16 + (7 - j)) % (DISPLAY_COLS as u16 / 2)) as u8 * 2;
+                                let screen_y = ((row as u16 + byte_ind as u16) % (DISPLAY_ROWS as u16 / 2)) as u8 * 2;
+
+                                let mut screen_writer = self.screen.lock().unwrap();
+                                for i in 0..2u8 {
+                                    for j in 0..2u8 {
+                                        let curr = &mut screen_writer[(screen_y + j) as usize][(screen_x + i) as usize];
+                                        if bit == 1 && *curr {
+                                            self.v[0xF] = 1;
+                                        }
+                                        let curr_val = match curr {
+                                            true => 1,
+                                            false => 0,
+                                        };
+                                        *curr = (curr_val ^ bit) == 1;
+                                    }
+                                    }
+                                }
+
+                        }
+                    };
                 }
             }
             0xE000 => {
@@ -446,8 +496,7 @@ impl Chip8 {
                         if x > 8 {
                             invalid_opcode!(opcode);
                         }
-
-                        todo!();
+                        self.rpl[x] = self.v[x];
                     }
                     0x85 => {
                         // FX85*    Read V0..VX from RPL user flags (X <= 7)
@@ -456,8 +505,7 @@ impl Chip8 {
                         if x > 8 {
                             invalid_opcode!(opcode);
                         }
-
-                        todo!();
+                        self.v[x] = self.rpl[x];
                     }
                     _ => {
                         invalid_opcode!(opcode);

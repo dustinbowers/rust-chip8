@@ -7,10 +7,10 @@ pub struct Display {
 }
 
 impl Display {
-    pub fn new(screen: Arc<Mutex<chip8::types::Screen>>) -> Display {
+    pub fn new(screen: Arc<Mutex<chip8::types::Screen>>, rows: usize, cols: usize) -> Display {
         Display {
             screen,
-            pixels: vec![vec![0u8; 64]; 32],
+            pixels: vec![vec![0u8; cols]; rows],
         }
     }
 

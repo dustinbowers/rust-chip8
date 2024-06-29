@@ -15,11 +15,12 @@ use macroquad::audio::{play_sound_once, Sound};
 mod chip8;
 mod display;
 use chip8::Chip8;
+use crate::chip8::{ DISPLAY_ROWS, DISPLAY_COLS};
 
 const WINDOW_HEIGHT: i32 = 256;
 const WINDOW_WIDTH: i32 = 512;
-const PIXEL_WIDTH: f32 = WINDOW_WIDTH as f32 / 64.0;
-const PIXEL_HEIGHT: f32 = WINDOW_HEIGHT as f32 / 32.0;
+const PIXEL_WIDTH: f32 = WINDOW_WIDTH as f32 / DISPLAY_COLS as f32;
+const PIXEL_HEIGHT: f32 = WINDOW_HEIGHT as f32 / DISPLAY_ROWS as f32;
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
@@ -46,7 +47,14 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
     // TODO: Determine if this rom is broken or if an opcode isn't correct
     // include_bytes!("../roms/programs/Keypad Test [Hap, 2006].ch8").to_vec()
 
-    include_bytes!("../roms/games/Space Invaders [David Winter].ch8").to_vec()
+    // include_bytes!("../roms/schip/octopeg.ch8").to_vec()
+    // include_bytes!("../roms/schip/gradsim.ch8").to_vec()
+    // include_bytes!("../roms/schip/sub8.ch8").to_vec()
+    // include_bytes!("../roms/schip/5-quirks.ch8").to_vec()
+    // include_bytes!("../roms/schip/6-keypad.ch8").to_vec()
+    include_bytes!("../roms/schip/8-scrolling.ch8").to_vec()
+
+    // include_bytes!("../roms/games/Space Invaders [David Winter].ch8").to_vec()
 }
 
 fn window_conf() -> Conf {
@@ -98,6 +106,8 @@ const KEY_MAP: &[(KeyCode, chip8::types::Key)] = &[
 #[macroquad::main(window_conf)]
 async fn main() {
     const DRAW_METHOD: DrawMethod = DrawMethod::REAL;
+    let mut ticks_per_sec = 700.0;
+    // let mut ticks_per_sec = 1400.0;
     let mut pause_emulation: bool = false;
     let mut debug_draw: bool = true;
 
@@ -117,14 +127,14 @@ async fn main() {
 
     let mut chip = Chip8::new();
     _ = chip.load_rom(rom, 0x200);
-    let mut display = display::Display::new(chip.get_screen());
+    let mut display = display::Display::new(chip.get_screen(), DISPLAY_ROWS, DISPLAY_COLS);
 
     // Time per step at 700 Hz
-    let step_duration = 1.0 / 700.0;
     let mut last_step_time = get_time();
 
     loop {
         clear_background(GRAY);
+        let step_duration = 1.0 / ticks_per_sec;
         match DRAW_METHOD {
             DrawMethod::RAW => {
                 let reader = display.screen.lock().unwrap();
