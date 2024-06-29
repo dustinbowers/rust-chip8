@@ -101,7 +101,7 @@ impl Chip8 {
 
     pub fn get_state(&self) -> String {
         let mut s = format!(
-            "Opcode: {:#X}\nPC: {:#X}\n SP: {:#X}\n I: {:#X}\nDT: {:#X}\nST: {:#X}",
+            "Opcode: {:#X}\nPC: {:#X}\nSP: {:#X}\nI: {:#X}\nDT: {:#X}\nST: {:#X}",
             self.fetch_opcode(),
             self.pc,
             self.sp,

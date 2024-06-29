@@ -43,16 +43,14 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
 pub fn fetch_rom_bytes() -> Vec<u8> {
     // Test CPU
     // include_bytes!("../roms/programs/BC_test.ch8").to_vec()
-
-    // TODO: Determine if this rom is broken or if an opcode isn't correct
-    include_bytes!("../roms/programs/Keypad Test [Hap, 2006].ch8").to_vec()
-
+    // include_bytes!("../roms/programs/Keypad Test [Hap, 2006].ch8").to_vec()
     // include_bytes!("../roms/schip/octopeg.ch8").to_vec()
     // include_bytes!("../roms/schip/gradsim.ch8").to_vec()
     // include_bytes!("../roms/schip/sub8.ch8").to_vec()
+    // include_bytes!("../roms/schip/1-chip8-logo.ch8").to_vec()
     // include_bytes!("../roms/schip/3-corax+.ch8").to_vec()
     // include_bytes!("../roms/schip/4-flags.ch8").to_vec()
-    // include_bytes!("../roms/schip/5-quirks.ch8").to_vec()
+    include_bytes!("../roms/schip/5-quirks.ch8").to_vec()
     // include_bytes!("../roms/schip/6-keypad.ch8").to_vec()
     // include_bytes!("../roms/schip/8-scrolling.ch8").to_vec()
 
@@ -217,16 +215,13 @@ async fn main() {
         }
         // Pause / Unpause updates
         if is_key_pressed(KeyCode::P) {
-            pause_emulation = match pause_emulation {
-                true => {
-                    // We have to reinitialize the last step time so that the CPU doesn't
-                    // try to 'catch up' for all the cycles that should have happened
-                    // during the paused period
-                    last_step_time = get_time();
-                    false
-                }
-                false => true,
-            };
+            if pause_emulation {
+                // We have to reinitialize the last step time so that the CPU doesn't
+                // try to 'catch up' for all the cycles that should have happened
+                // during the paused period
+                last_step_time = get_time();
+            }
+            pause_emulation = !pause_emulation;
         }
 
         if pause_emulation == false {
