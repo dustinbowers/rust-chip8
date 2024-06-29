@@ -24,6 +24,7 @@ pub struct Chip8 {
 
     super_chip_enabled: bool,
     hires_mode: bool,
+    halt_input_register: u8,
     halt_for_input: bool,
 }
 
@@ -43,6 +44,7 @@ impl Chip8 {
             st: 0,
             super_chip_enabled: true,
             hires_mode: false,
+            halt_input_register: 0,
             halt_for_input: false,
         };
         c.load_font();
@@ -99,8 +101,13 @@ impl Chip8 {
 
     pub fn get_state(&self) -> String {
         let mut s = format!(
-            "PC: {:#X}\nSP: {:#X}\n I: {:#X}\nDT: {:#X}\nST: {:#X}",
-            self.pc, self.sp, self.i, self.dt, self.st
+            "Opcode: {:#X}\nPC: {:#X}\n SP: {:#X}\n I: {:#X}\nDT: {:#X}\nST: {:#X}",
+            self.fetch_opcode(),
+            self.pc,
+            self.sp,
+            self.i,
+            self.dt,
+            self.st
         );
 
         let registers = self
@@ -118,32 +125,51 @@ impl Chip8 {
             .collect::<Vec<String>>()
             .join(" ");
         s = format!("{}\nStack: [{}]", s, stack);
+
+        let keyboard = self
+            .keyboard
+            .iter()
+            .map(|&x| match x {
+                true => "X",
+                false => "-",
+            })
+            .collect::<Vec<&str>>()
+            .join(" ");
+        s = format!("{}\nKeys: [{}]", s, keyboard);
+
+        s = format!("{}\nhalt_for_input: {:?}", s, self.halt_for_input);
+        s = format!(
+            "{}\nhalt_input_register: {:#X}",
+            s, self.halt_input_register
+        );
+
         s
     }
 
     pub fn set_key_state(&mut self, key: types::Key, is_pressed: bool) {
         let cur_state = &mut self.keyboard[key as usize];
-        if *cur_state == is_pressed {
+
+        if self.halt_for_input == true && *cur_state == true && is_pressed == false {
+            self.v[self.halt_input_register as usize] = key as u8;
             self.halt_for_input = false;
         }
         *cur_state = is_pressed;
     }
 
-    pub fn reset_key_state(&mut self) {
-        self.keyboard = vec![false; 16];
-    }
-
     #[inline]
-    fn fetch_opcode(&mut self) -> u16 {
+    fn fetch_opcode(&self) -> u16 {
         let byte1: u8 = self.memory[self.pc as usize];
         let byte2: u8 = self.memory[self.pc as usize + 1];
 
-        self.pc += 2;
         ((byte1 as u16) << 8) | (byte2 as u16)
     }
 
     pub fn step(&mut self) -> Result<i32, ()> {
+        if self.halt_for_input {
+            return Ok(0);
+        }
         let opcode = self.fetch_opcode();
+        self.pc += 2;
         // self.inspect(opcode);
 
         match opcode & 0xF000 {
@@ -191,7 +217,7 @@ impl Chip8 {
                         let mut screen_writer = self.screen.lock().unwrap();
                         for row in 0..DISPLAY_ROWS {
                             screen_writer[row].rotate_left(4);
-                            for c in DISPLAY_COLS-4..DISPLAY_COLS {
+                            for c in DISPLAY_COLS - 4..DISPLAY_COLS {
                                 screen_writer[row][c] = false;
                             }
                         }
@@ -299,8 +325,8 @@ impl Chip8 {
                         // (8xy6) - SHR Vx - Compute V_x >>= 1, store least-sig bit in VF
                         let x = get_x!(opcode);
                         let v_x = self.v[x];
-                        self.v[0xF] = v_x & 0x1;
                         self.v[x] = v_x >> 1;
+                        self.v[0xF] = v_x & 0x1;
                     }
                     0x7 => {
                         // (8xy7) - SUBN Vx, Vy - Compute V_x = V_y - V_x, set borrow-flag in VF
@@ -317,8 +343,8 @@ impl Chip8 {
                         // (8xyE) - SHL Vx - Computer V_x <<= 1,
                         let x = get_x!(opcode);
                         let v_x = self.v[x];
-                        self.v[0xF] = (v_x >> 7) & 0x1;
                         self.v[x] = v_x << 1;
+                        self.v[0xF] = (v_x >> 7) & 0x1;
                     }
                     _ => {
                         invalid_opcode!(opcode)
@@ -364,7 +390,8 @@ impl Chip8 {
                             for j in 0..8 {
                                 let bit = (sprite_byte >> j) & 0x1;
                                 let screen_x = ((col as u16 + (7 - j)) % DISPLAY_COLS as u16) as u8;
-                                let screen_y = ((row as u16 + byte_ind as u16) % DISPLAY_ROWS as u16) as u8;
+                                let screen_y =
+                                    ((row as u16 + byte_ind as u16) % DISPLAY_ROWS as u16) as u8;
 
                                 let mut screen_writer = self.screen.lock().unwrap();
                                 let curr = &mut screen_writer[screen_y as usize][screen_x as usize];
@@ -381,13 +408,18 @@ impl Chip8 {
                         false => {
                             for j in 0..8 {
                                 let bit = (sprite_byte >> j) & 0x1;
-                                let screen_x = ((col as u16 + (7 - j)) % (DISPLAY_COLS as u16 / 2)) as u8 * 2;
-                                let screen_y = ((row as u16 + byte_ind as u16) % (DISPLAY_ROWS as u16 / 2)) as u8 * 2;
+                                let screen_x =
+                                    ((col as u16 + (7 - j)) % (DISPLAY_COLS as u16 / 2)) as u8 * 2;
+                                let screen_y = ((row as u16 + byte_ind as u16)
+                                    % (DISPLAY_ROWS as u16 / 2))
+                                    as u8
+                                    * 2;
 
                                 let mut screen_writer = self.screen.lock().unwrap();
                                 for i in 0..2u8 {
                                     for j in 0..2u8 {
-                                        let curr = &mut screen_writer[(screen_y + j) as usize][(screen_x + i) as usize];
+                                        let curr = &mut screen_writer[(screen_y + j) as usize]
+                                            [(screen_x + i) as usize];
                                         if bit == 1 && *curr {
                                             self.v[0xF] = 1;
                                         }
@@ -397,9 +429,8 @@ impl Chip8 {
                                         };
                                         *curr = (curr_val ^ bit) == 1;
                                     }
-                                    }
                                 }
-
+                            }
                         }
                     };
                 }
@@ -434,14 +465,19 @@ impl Chip8 {
                     0x0A => {
                         // (Fx0A) - LD Vx, K
                         // Halt for input
-                        match self.halt_for_input {
-                            true => {
-                                self.pc -= 2;
-                            }
-                            false => {
-                                self.halt_for_input = true;
-                            }
-                        }
+                        // match self.halt_for_input {
+                        //     true => {
+                        //         self.pc -= 2;
+                        //     }
+                        //     false => {
+                        //         let x = get_x!(opcode);
+                        //         self.halt_input_register = x as u8;
+                        //         self.halt_for_input = true;
+                        //     }
+                        // }
+                        let x = get_x!(opcode);
+                        self.halt_input_register = x as u8;
+                        self.halt_for_input = true;
                     }
                     0x15 => {
                         // (Fx15) - LD DT, Vx
@@ -513,7 +549,7 @@ impl Chip8 {
                 }
             }
             _ => {
-                panic!("Invalid opcode: {:#?} ", opcode)
+                invalid_opcode!(opcode);
             }
         }
         Ok(1)

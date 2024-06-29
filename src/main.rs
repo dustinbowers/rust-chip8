@@ -45,14 +45,16 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
     // include_bytes!("../roms/programs/BC_test.ch8").to_vec()
 
     // TODO: Determine if this rom is broken or if an opcode isn't correct
-    // include_bytes!("../roms/programs/Keypad Test [Hap, 2006].ch8").to_vec()
+    include_bytes!("../roms/programs/Keypad Test [Hap, 2006].ch8").to_vec()
 
     // include_bytes!("../roms/schip/octopeg.ch8").to_vec()
     // include_bytes!("../roms/schip/gradsim.ch8").to_vec()
     // include_bytes!("../roms/schip/sub8.ch8").to_vec()
+    // include_bytes!("../roms/schip/3-corax+.ch8").to_vec()
+    // include_bytes!("../roms/schip/4-flags.ch8").to_vec()
     // include_bytes!("../roms/schip/5-quirks.ch8").to_vec()
     // include_bytes!("../roms/schip/6-keypad.ch8").to_vec()
-    include_bytes!("../roms/schip/8-scrolling.ch8").to_vec()
+    // include_bytes!("../roms/schip/8-scrolling.ch8").to_vec()
 
     // include_bytes!("../roms/games/Space Invaders [David Winter].ch8").to_vec()
 }
@@ -200,11 +202,12 @@ async fn main() {
         }
 
         // Handle user input
-        chip.reset_key_state();
         let keys_pressed = get_keys_down();
         for (k, v) in KEY_MAP.iter() {
             if keys_pressed.contains(k) {
                 chip.set_key_state(*v, true);
+            } else {
+                chip.set_key_state(*v, false);
             }
         }
 
