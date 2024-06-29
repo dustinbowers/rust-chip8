@@ -2,12 +2,12 @@ use crate::chip8;
 use std::sync::{Arc, Mutex};
 
 pub struct Display {
-    pub screen: Arc<Mutex<chip8::Screen>>,
+    pub screen: Arc<Mutex<chip8::types::Screen>>,
     pub pixels: Vec<Vec<u8>>,
 }
 
 impl Display {
-    pub fn new(screen: Arc<Mutex<chip8::Screen>>) -> Display {
+    pub fn new(screen: Arc<Mutex<chip8::types::Screen>>) -> Display {
         Display {
             screen,
             pixels: vec![vec![0u8; 64]; 32],

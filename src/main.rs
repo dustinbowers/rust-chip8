@@ -76,23 +76,23 @@ enum DrawMethod {
     REAL,
 }
 
-const KEY_MAP: &[(KeyCode, chip8::Key)] = &[
-    (KeyCode::Key1, chip8::Key::Key1),
-    (KeyCode::Key2, chip8::Key::Key2),
-    (KeyCode::Key3, chip8::Key::Key3),
-    (KeyCode::Key4, chip8::Key::C),
-    (KeyCode::Q, chip8::Key::Key4),
-    (KeyCode::W, chip8::Key::Key5),
-    (KeyCode::E, chip8::Key::Key6),
-    (KeyCode::R, chip8::Key::D),
-    (KeyCode::A, chip8::Key::Key7),
-    (KeyCode::S, chip8::Key::Key8),
-    (KeyCode::D, chip8::Key::Key9),
-    (KeyCode::F, chip8::Key::E),
-    (KeyCode::Z, chip8::Key::A),
-    (KeyCode::X, chip8::Key::Key0),
-    (KeyCode::C, chip8::Key::B),
-    (KeyCode::V, chip8::Key::F),
+const KEY_MAP: &[(KeyCode, chip8::types::Key)] = &[
+    (KeyCode::Key1, chip8::types::Key::Key1),
+    (KeyCode::Key2, chip8::types::Key::Key2),
+    (KeyCode::Key3, chip8::types::Key::Key3),
+    (KeyCode::Key4, chip8::types::Key::C),
+    (KeyCode::Q, chip8::types::Key::Key4),
+    (KeyCode::W, chip8::types::Key::Key5),
+    (KeyCode::E, chip8::types::Key::Key6),
+    (KeyCode::R, chip8::types::Key::D),
+    (KeyCode::A, chip8::types::Key::Key7),
+    (KeyCode::S, chip8::types::Key::Key8),
+    (KeyCode::D, chip8::types::Key::Key9),
+    (KeyCode::F, chip8::types::Key::E),
+    (KeyCode::Z, chip8::types::Key::A),
+    (KeyCode::X, chip8::types::Key::Key0),
+    (KeyCode::C, chip8::types::Key::B),
+    (KeyCode::V, chip8::types::Key::F),
 ];
 
 #[macroquad::main(window_conf)]
