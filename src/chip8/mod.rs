@@ -142,6 +142,7 @@ impl Chip8 {
             "{}\nhalt_input_register: {:#X}",
             s, self.halt_input_register
         );
+        s = format!("{}\nsuper-chip: {:?}\thires: {:?}", s, self.super_chip_enabled, self.hires_mode);
 
         s
     }
@@ -181,8 +182,15 @@ impl Chip8 {
                         let mut screen_writer = self.screen.lock().unwrap();
                         let n = get_n!(opcode) as usize;
 
-                        screen_writer.rotate_right(n);
-                        for i in 0..DISPLAY_ROWS {
+                        // QUIRK: Scrolling in superchip lowres 'modern' (incorrectly) requires doubling
+                        //        In legacy, it doesn't
+                        let mut scroll_distance= n;
+                        if self.hires_mode == false {
+                            scroll_distance *= 2;
+                        }
+
+                        screen_writer.rotate_right(scroll_distance);
+                        for i in 0..scroll_distance {
                             screen_writer[i] = vec![false; DISPLAY_COLS];
                         }
                     }
@@ -204,9 +212,17 @@ impl Chip8 {
                         // 00FB*    Scroll display 4 pixels right
                         ensure_super_chip!(self.super_chip_enabled);
                         let mut screen_writer = self.screen.lock().unwrap();
+
+                        // QUIRK: Scrolling in superchip lowres 'modern' (incorrectly) requires doubling
+                        //        In legacy, it doesn't
+                        let mut scroll_distance= 4;
+                        if self.hires_mode == false {
+                            scroll_distance *= 2;
+                        }
+
                         for row in 0..DISPLAY_ROWS {
-                            screen_writer[row].rotate_right(4);
-                            for c in 0..4 {
+                            screen_writer[row].rotate_right(scroll_distance);
+                            for c in 0..scroll_distance {
                                 screen_writer[row][c] = false;
                             }
                         }
@@ -215,9 +231,15 @@ impl Chip8 {
                         // 00FC*    Scroll display 4 pixels left
                         ensure_super_chip!(self.super_chip_enabled);
                         let mut screen_writer = self.screen.lock().unwrap();
+
+                        let mut scroll_distance = 4;
+                        if self.hires_mode == false {
+                            scroll_distance *= 2;
+                        }
+
                         for row in 0..DISPLAY_ROWS {
-                            screen_writer[row].rotate_left(4);
-                            for c in DISPLAY_COLS - 4..DISPLAY_COLS {
+                            screen_writer[row].rotate_left(scroll_distance);
+                            for c in DISPLAY_COLS - scroll_distance..DISPLAY_COLS {
                                 screen_writer[row][c] = false;
                             }
                         }
@@ -290,14 +312,20 @@ impl Chip8 {
                     0x1 => {
                         // (8xy1) - OR Vx, Vy - Compute V_x |= V_y
                         self.v[get_x!(opcode)] |= self.v[get_y!(opcode)];
+                        // reset Vf for Chip, not SCHIP
+                        // self.v[0xF] = 0;
                     }
                     0x2 => {
                         // (8xy2) - AND Vx, Vy - Compute V_x &= V_y
                         self.v[get_x!(opcode)] &= self.v[get_y!(opcode)];
+                        // reset Vf for Chip, not SCHIP
+                        // self.v[0xF] = 0;
                     }
                     0x3 => {
                         // (8xy3) - XOR Vx, Vy - Compute V_x ^= V_y
                         self.v[get_x!(opcode)] ^= self.v[get_y!(opcode)];
+                        // reset Vf for Chip, not SCHIP
+                        // self.v[0xF] = 0;
                     }
                     0x4 => {
                         // 8xy4 - ADD Vx, Vy - Compute V_x += V_y, set overflow
@@ -380,9 +408,12 @@ impl Chip8 {
                 // (Dxyn) - DRW Vx, Vy, nibble
                 let col = self.v[get_x!(opcode)];
                 let row = self.v[get_y!(opcode)];
-                let n = get_n!(opcode) as u8;
+                let mut n = get_n!(opcode) as u8;
                 let sprite_offset = self.i;
                 self.v[0xF] = 0;
+                if n == 0 && self.hires_mode {
+                    n = 16;
+                }
                 for byte_ind in 0..n {
                     let sprite_byte = self.memory[(sprite_offset + byte_ind as u16) as usize];
                     match self.hires_mode {

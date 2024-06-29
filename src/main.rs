@@ -50,9 +50,10 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
     // include_bytes!("../roms/schip/1-chip8-logo.ch8").to_vec()
     // include_bytes!("../roms/schip/3-corax+.ch8").to_vec()
     // include_bytes!("../roms/schip/4-flags.ch8").to_vec()
-    include_bytes!("../roms/schip/5-quirks.ch8").to_vec()
+    // include_bytes!("../roms/schip/5-quirks.ch8").to_vec()
     // include_bytes!("../roms/schip/6-keypad.ch8").to_vec()
-    // include_bytes!("../roms/schip/8-scrolling.ch8").to_vec()
+    // include_bytes!("../roms/schip/7-beep.ch8").to_vec()
+    include_bytes!("../roms/schip/8-scrolling.ch8").to_vec()
 
     // include_bytes!("../roms/games/Space Invaders [David Winter].ch8").to_vec()
 }
@@ -181,8 +182,8 @@ async fn main() {
 
         // Draw debug if enabled
         if debug_draw {
-            let debug_x: f32 = 18.0;
-            let debug_y: f32 = 18.0;
+            let debug_x: f32 = 12.0;
+            let debug_y: f32 = 0.0;
             let font_size: f32 = 20.0;
 
             chip.get_state()
