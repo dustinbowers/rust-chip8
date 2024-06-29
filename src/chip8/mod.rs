@@ -7,17 +7,19 @@ pub mod types;
 
 pub struct Chip8 {
     screen: Arc<Mutex<types::Screen>>,
-    memory: Vec<u8>, // [u8; 4096],
-    stack: Vec<u16>, // [u16; 16],
+    memory: Vec<u8>,     // [u8; 4096],
+    stack: Vec<u16>,     // [u16; 16],
     keyboard: Vec<bool>, // [bool; 16],
 
-    v: Vec<u8>,  // 16 8-bit registers (note VF is a carry-flag register) = [u8; 16]
-    pc: u16,     // Program/Instruction counter
-    i: u16,      // Index register
-    sp: u16,     // Stack pointer
-    dt: u8,      // Delay timer
-    st: u8,      // Sound timer
+    v: Vec<u8>,   // 16 8-bit registers (note VF is a carry-flag register) = [u8; 16]
+    rpl: Vec<u8>, // 8 8-bit additional "Register and Process Logic" flags in Super-Chip
+    pc: u16,      // Program/Instruction counter
+    i: u16,       // Index register
+    sp: u16,      // Stack pointer
+    dt: u8,       // Delay timer
+    st: u8,       // Sound timer
 
+    super_chip_enabled: bool,
     halt_for_input: bool,
 }
 
@@ -29,11 +31,13 @@ impl Chip8 {
             stack: vec![0u16; 16],
             keyboard: vec![false; 16],
             v: vec![0u8; 16],
+            rpl: vec![0u8, 8],
             pc: 0x200,
             i: 0,
             sp: 0,
             dt: 0,
             st: 0,
+            super_chip_enabled: true,
             halt_for_input: false,
         };
         c.load_font();
@@ -140,6 +144,11 @@ impl Chip8 {
         match opcode & 0xF000 {
             0x0000 => {
                 match get_kk!(opcode) {
+                    0x00C0..=0x00CF => {
+                        // 00CN*    Scroll display N lines down
+                        ensure_super_chip!(self.super_chip_enabled);
+                        todo!();
+                    }
                     0x00E0 => {
                         // CLS
                         let mut screen_writer = self.screen.lock().unwrap();
@@ -153,6 +162,31 @@ impl Chip8 {
                         // RET
                         self.pc = self.stack[self.sp as usize];
                         self.sp -= 1;
+                    }
+                    0x00FB => {
+                        // 00FB*    Scroll display 4 pixels right
+                        ensure_super_chip!(self.super_chip_enabled);
+                        todo!();
+                    }
+                    0x00FC => {
+                        // 00FC*    Scroll display 4 pixels left
+                        ensure_super_chip!(self.super_chip_enabled);
+                        todo!();
+                    }
+                    0x00FD => {
+                        // 00FD*    Exit CHIP interpreter
+                        ensure_super_chip!(self.super_chip_enabled);
+                        todo!();
+                    }
+                    0x00FE => {
+                        // 00FE*    Disable extended screen mode
+                        ensure_super_chip!(self.super_chip_enabled);
+                        todo!();
+                    }
+                    0x00FF => {
+                        // 00FF*    Enable extended screen mode for full-screen graphics
+                        ensure_super_chip!(self.super_chip_enabled);
+                        todo!();
                     }
                     _ => {
                         invalid_opcode!(opcode)
@@ -366,9 +400,6 @@ impl Chip8 {
                     0x18 => {
                         // (Fx18) - LD ST, Vx
                         self.st = self.v[get_x!(opcode)];
-                        if self.st > 0 {
-                            // TODO: beeeeeep
-                        }
                     }
                     0x1E => {
                         // (Fx1E) - ADD I, Vx
@@ -380,6 +411,11 @@ impl Chip8 {
                     0x29 => {
                         // (Fx29) - LD F, Vx
                         self.i = (self.v[get_x!(opcode)] as u16) * 5 + 0x50;
+                    }
+                    0x30 => {
+                        // FX30*    Point I to 10-byte font sprite for digit VX (0..9)
+                        ensure_super_chip!(self.super_chip_enabled);
+                        todo!();
                     }
                     0x33 => {
                         // (Fx33) - LD B, Vx
@@ -402,6 +438,26 @@ impl Chip8 {
                         for i in 0..=x {
                             self.v[i] = self.memory[self.i as usize + i];
                         }
+                    }
+                    0x75 => {
+                        // FX75*    Store V0..VX in RPL user flags (X <= 7)
+                        ensure_super_chip!(self.super_chip_enabled);
+                        let x = get_x!(opcode);
+                        if x > 8 {
+                            invalid_opcode!(opcode);
+                        }
+
+                        todo!();
+                    }
+                    0x85 => {
+                        // FX85*    Read V0..VX from RPL user flags (X <= 7)
+                        ensure_super_chip!(self.super_chip_enabled);
+                        let x = get_x!(opcode);
+                        if x > 8 {
+                            invalid_opcode!(opcode);
+                        }
+
+                        todo!();
                     }
                     _ => {
                         invalid_opcode!(opcode);
