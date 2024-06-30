@@ -532,7 +532,8 @@ impl Chip8 {
                     0x30 => {
                         // FX30*    Point I to 10-byte font sprite for digit VX (0..9)
                         ensure_super_chip!(self.super_chip_enabled);
-                        todo!();
+                        let v_x = self.v[get_x!(opcode)];
+                        self.i = ((types::FONT_OFFSET + 80) + (v_x as usize * 10)) as u16
                     }
                     0x33 => {
                         // (Fx33) - LD B, Vx

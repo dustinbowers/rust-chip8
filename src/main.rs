@@ -43,19 +43,25 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
 pub fn fetch_rom_bytes() -> Vec<u8> {
     // Test CPU
     // include_bytes!("../roms/programs/BC_test.ch8").to_vec()
+    // include_bytes!("../roms/tests/1-chip8-logo.ch8").to_vec()
+    // include_bytes!("../roms/tests/3-corax+.ch8").to_vec()
+    // include_bytes!("../roms/tests/4-flags.ch8").to_vec()
+    // include_bytes!("../roms/tests/5-quirks.ch8").to_vec()
+    // include_bytes!("../roms/tests/6-keypad.ch8").to_vec()
+    // include_bytes!("../roms/tests/7-beep.ch8").to_vec()
+    // include_bytes!("../roms/tests/8-scrolling.ch8").to_vec()
     // include_bytes!("../roms/programs/Keypad Test [Hap, 2006].ch8").to_vec()
+
+    // include_bytes!("../roms/schip/octogon.ch8").to_vec()
+    // include_bytes!("../roms/schip/dodge.ch8").to_vec()
+    // include_bytes!("../roms/schip/binding.ch8").to_vec()
     // include_bytes!("../roms/schip/octopeg.ch8").to_vec()
     // include_bytes!("../roms/schip/gradsim.ch8").to_vec()
-    // include_bytes!("../roms/schip/sub8.ch8").to_vec()
-    // include_bytes!("../roms/schip/1-chip8-logo.ch8").to_vec()
-    // include_bytes!("../roms/schip/3-corax+.ch8").to_vec()
-    // include_bytes!("../roms/schip/4-flags.ch8").to_vec()
-    // include_bytes!("../roms/schip/5-quirks.ch8").to_vec()
-    // include_bytes!("../roms/schip/6-keypad.ch8").to_vec()
-    // include_bytes!("../roms/schip/7-beep.ch8").to_vec()
-    include_bytes!("../roms/schip/8-scrolling.ch8").to_vec()
+    // include_bytes!("../roms/schip/octojam7title.ch8").to_vec()
+    // include_bytes!("../roms/schip/DVN8.ch8").to_vec()
+    // include_bytes!("../roms/schip/oob_test_7.ch8").to_vec()
 
-    // include_bytes!("../roms/games/Space Invaders [David Winter].ch8").to_vec()
+    include_bytes!("../roms/games/Space Invaders [David Winter].ch8").to_vec()
 }
 
 fn window_conf() -> Conf {
@@ -135,6 +141,8 @@ async fn main() {
 
     loop {
         clear_background(GRAY);
+        // TODO: Fix the way cycles are executed per frame, maybe? /Technically/ They should be
+        //       evenly distributed between frame draws, rather than front-loaded all at once...
         let step_duration = 1.0 / ticks_per_sec;
         match DRAW_METHOD {
             DrawMethod::RAW => {
