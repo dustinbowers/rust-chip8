@@ -58,8 +58,8 @@ impl Chip8 {
         return c;
     }
 
-    pub fn get_quirks_mode(self) -> Quirks {
-        return self.quirks;
+    pub fn get_quirks_mode(&self) -> &Quirks {
+        return &self.quirks;
     }
 
     pub fn set_quirks_mode(&mut self, quirks: Quirks) {
@@ -158,12 +158,8 @@ impl Chip8 {
 
         s = format!("{}\nhalt_for_input: {:?}", s, self.halt_for_input);
         s = format!(
-            "{}\nhalt_input_register: {:#X}",
-            s, self.halt_input_register
-        );
-        s = format!(
-            "{}\nsuper-chip: {:?}\thires: {:?}",
-            s, self.super_chip_enabled, self.hires_mode
+            "{}\nhires: {:?}",
+            s, self.hires_mode
         );
 
         s

@@ -46,7 +46,7 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
     // include_bytes!("../roms/tests/1-chip8-logo.ch8").to_vec()
     // include_bytes!("../roms/tests/3-corax+.ch8").to_vec()
     // include_bytes!("../roms/tests/4-flags.ch8").to_vec()
-    include_bytes!("../roms/tests/5-quirks.ch8").to_vec()
+    // include_bytes!("../roms/tests/5-quirks.ch8").to_vec()
     // include_bytes!("../roms/tests/6-keypad.ch8").to_vec()
     // include_bytes!("../roms/tests/7-beep.ch8").to_vec()
     // include_bytes!("../roms/tests/8-scrolling.ch8").to_vec()
@@ -56,8 +56,6 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
     // include_bytes!("../roms/schip/dodge.ch8").to_vec()
     // include_bytes!("../roms/schip/binding.ch8").to_vec()
     // include_bytes!("../roms/schip/octopeg.ch8").to_vec()
-    // include_bytes!("../roms/schip/gradsim.ch8").to_vec()
-    // include_bytes!("../roms/schip/octojam7title.ch8").to_vec()
     // include_bytes!("../roms/schip/DVN8.ch8").to_vec()
     // include_bytes!("../roms/schip/oob_test_7.ch8").to_vec()
 
@@ -109,16 +107,11 @@ const KEY_MAP: &[(KeyCode, chip8::types::Key)] = &[
     (KeyCode::C, chip8::types::Key::B),
     (KeyCode::V, chip8::types::Key::F),
 ];
-pub fn square(num: i32) -> i32 {
-    let x: Option<i32> = Some(5);
-    let x = x.expect("hello, world");
-    return x;
-}
+
 #[macroquad::main(window_conf)]
 async fn main() {
     const DRAW_METHOD: DrawMethod = DrawMethod::REAL;
-    let mut ticks_per_sec = 700.0;
-    // let mut ticks_per_sec = 1400.0;
+    let ticks_per_sec = 700.0;
     let mut pause_emulation: bool = false;
     let mut debug_draw: bool = true;
 
@@ -208,9 +201,14 @@ async fn main() {
                         debug_x,
                         debug_y + ((ind as f32 + 1.0) * font_size),
                         font_size,
-                        ORANGE,
+                        VIOLET,
                     );
                 });
+
+            let quirks = chip.get_quirks_mode();
+            let s = format!("Mode: {}", quirks.mode_label);
+            draw_text(&s, WINDOW_WIDTH as f32 - 200.0, WINDOW_HEIGHT as f32 - 4.0, 20.0, RED);
+
         }
 
         // Handle user input
