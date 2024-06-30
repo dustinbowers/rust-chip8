@@ -29,6 +29,7 @@ pub struct Chip8 {
     hires_mode: bool,
     halt_input_register: u8,
     halt_for_input: bool,
+    wait_for_vblank: bool,
     quirks: Quirks
 }
 
@@ -50,6 +51,7 @@ impl Chip8 {
             hires_mode: false,
             halt_input_register: 0,
             halt_for_input: false,
+            wait_for_vblank: false,
             quirks: Quirks::new(SuperChipModern)
         };
         c.load_font();
@@ -102,6 +104,10 @@ impl Chip8 {
             self.dt -= 1
         }
         (st, dt)
+    }
+
+    pub fn v_blank(&mut self) {
+        self.wait_for_vblank = false;
     }
 
     pub fn get_state(&self) -> String {
@@ -172,6 +178,9 @@ impl Chip8 {
 
     pub fn step(&mut self) -> Result<i32, ()> {
         if self.halt_for_input {
+            return Ok(0);
+        }
+        if self.wait_for_vblank {
             return Ok(0);
         }
         let opcode = self.fetch_opcode();
@@ -444,6 +453,7 @@ impl Chip8 {
                         false => {
                             for j in 0..8 {
                                 let bit = (sprite_byte >> j) & 0x1;
+
                                 let screen_x =
                                     ((col as u16 + (7 - j)) % (DISPLAY_COLS as u16 / 2)) as u8 * 2;
                                 let screen_y = ((row as u16 + byte_ind as u16)
@@ -469,6 +479,9 @@ impl Chip8 {
                             }
                         }
                     };
+                }
+                if self.quirks.display_wait {
+                    self.wait_for_vblank = true;
                 }
             }
             0xE000 => {
@@ -549,17 +562,23 @@ impl Chip8 {
                         self.memory[i_usize + 2] = v_x % 10;
                     }
                     0x55 => {
-                        // (Fx55) - LD [I], Vx
+                        // (Fx55) - LD [I], Vx - Store V0..VX in memory starting at i
                         let x = get_x!(opcode);
                         for i in 0..=x {
                             self.memory[self.i as usize + i] = self.v[i];
                         }
+                        if self.quirks.load_store_index_increase {
+                            self.i += x as u16 + 1;
+                        }
                     }
                     0x65 => {
-                        // (Fx65) - LD Vx, [I]
+                        // (Fx65) - LD Vx, [I] - Load V0..VX in memory starting at i
                         let x = get_x!(opcode);
                         for i in 0..=x {
                             self.v[i] = self.memory[self.i as usize + i];
+                        }
+                        if self.quirks.load_store_index_increase {
+                            self.i += x as u16 + 1;
                         }
                     }
                     0x75 => {

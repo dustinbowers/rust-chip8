@@ -46,7 +46,7 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
     // include_bytes!("../roms/tests/1-chip8-logo.ch8").to_vec()
     // include_bytes!("../roms/tests/3-corax+.ch8").to_vec()
     // include_bytes!("../roms/tests/4-flags.ch8").to_vec()
-    // include_bytes!("../roms/tests/5-quirks.ch8").to_vec()
+    include_bytes!("../roms/tests/5-quirks.ch8").to_vec()
     // include_bytes!("../roms/tests/6-keypad.ch8").to_vec()
     // include_bytes!("../roms/tests/7-beep.ch8").to_vec()
     // include_bytes!("../roms/tests/8-scrolling.ch8").to_vec()
@@ -61,7 +61,7 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
     // include_bytes!("../roms/schip/DVN8.ch8").to_vec()
     // include_bytes!("../roms/schip/oob_test_7.ch8").to_vec()
 
-    include_bytes!("../roms/games/Space Invaders [David Winter].ch8").to_vec()
+    // include_bytes!("../roms/games/Space Invaders [David Winter].ch8").to_vec()
 }
 
 fn window_conf() -> Conf {
@@ -140,6 +140,7 @@ async fn main() {
     let mut last_step_time = get_time();
 
     loop {
+        chip.v_blank();
         clear_background(GRAY);
         // TODO: Fix the way cycles are executed per frame, maybe? /Technically/ They should be
         //       evenly distributed between frame draws, rather than front-loaded all at once...
@@ -257,7 +258,6 @@ async fn main() {
                 }
             }
         }
-
         next_frame().await;
     }
 }
