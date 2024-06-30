@@ -15,11 +15,12 @@ use macroquad::audio::{play_sound_once, Sound};
 mod chip8;
 mod display;
 use chip8::Chip8;
+use crate::chip8::{ DISPLAY_ROWS, DISPLAY_COLS};
 
 const WINDOW_HEIGHT: i32 = 256;
 const WINDOW_WIDTH: i32 = 512;
-const PIXEL_WIDTH: f32 = WINDOW_WIDTH as f32 / 64.0;
-const PIXEL_HEIGHT: f32 = WINDOW_HEIGHT as f32 / 32.0;
+const PIXEL_WIDTH: f32 = WINDOW_WIDTH as f32 / DISPLAY_COLS as f32;
+const PIXEL_HEIGHT: f32 = WINDOW_HEIGHT as f32 / DISPLAY_ROWS as f32;
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
@@ -42,9 +43,23 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
 pub fn fetch_rom_bytes() -> Vec<u8> {
     // Test CPU
     // include_bytes!("../roms/programs/BC_test.ch8").to_vec()
-
-    // TODO: Determine if this rom is broken or if an opcode isn't correct
+    // include_bytes!("../roms/tests/1-chip8-logo.ch8").to_vec()
+    // include_bytes!("../roms/tests/3-corax+.ch8").to_vec()
+    // include_bytes!("../roms/tests/4-flags.ch8").to_vec()
+    // include_bytes!("../roms/tests/5-quirks.ch8").to_vec()
+    // include_bytes!("../roms/tests/6-keypad.ch8").to_vec()
+    // include_bytes!("../roms/tests/7-beep.ch8").to_vec()
+    // include_bytes!("../roms/tests/8-scrolling.ch8").to_vec()
     // include_bytes!("../roms/programs/Keypad Test [Hap, 2006].ch8").to_vec()
+
+    // include_bytes!("../roms/schip/octogon.ch8").to_vec()
+    // include_bytes!("../roms/schip/dodge.ch8").to_vec()
+    // include_bytes!("../roms/schip/binding.ch8").to_vec()
+    // include_bytes!("../roms/schip/octopeg.ch8").to_vec()
+    // include_bytes!("../roms/schip/gradsim.ch8").to_vec()
+    // include_bytes!("../roms/schip/octojam7title.ch8").to_vec()
+    // include_bytes!("../roms/schip/DVN8.ch8").to_vec()
+    // include_bytes!("../roms/schip/oob_test_7.ch8").to_vec()
 
     include_bytes!("../roms/games/Space Invaders [David Winter].ch8").to_vec()
 }
@@ -76,28 +91,30 @@ enum DrawMethod {
     REAL,
 }
 
-const KEY_MAP: &[(KeyCode, chip8::Key)] = &[
-    (KeyCode::Key1, chip8::Key::Key1),
-    (KeyCode::Key2, chip8::Key::Key2),
-    (KeyCode::Key3, chip8::Key::Key3),
-    (KeyCode::Key4, chip8::Key::C),
-    (KeyCode::Q, chip8::Key::Key4),
-    (KeyCode::W, chip8::Key::Key5),
-    (KeyCode::E, chip8::Key::Key6),
-    (KeyCode::R, chip8::Key::D),
-    (KeyCode::A, chip8::Key::Key7),
-    (KeyCode::S, chip8::Key::Key8),
-    (KeyCode::D, chip8::Key::Key9),
-    (KeyCode::F, chip8::Key::E),
-    (KeyCode::Z, chip8::Key::A),
-    (KeyCode::X, chip8::Key::Key0),
-    (KeyCode::C, chip8::Key::B),
-    (KeyCode::V, chip8::Key::F),
+const KEY_MAP: &[(KeyCode, chip8::types::Key)] = &[
+    (KeyCode::Key1, chip8::types::Key::Key1),
+    (KeyCode::Key2, chip8::types::Key::Key2),
+    (KeyCode::Key3, chip8::types::Key::Key3),
+    (KeyCode::Key4, chip8::types::Key::C),
+    (KeyCode::Q, chip8::types::Key::Key4),
+    (KeyCode::W, chip8::types::Key::Key5),
+    (KeyCode::E, chip8::types::Key::Key6),
+    (KeyCode::R, chip8::types::Key::D),
+    (KeyCode::A, chip8::types::Key::Key7),
+    (KeyCode::S, chip8::types::Key::Key8),
+    (KeyCode::D, chip8::types::Key::Key9),
+    (KeyCode::F, chip8::types::Key::E),
+    (KeyCode::Z, chip8::types::Key::A),
+    (KeyCode::X, chip8::types::Key::Key0),
+    (KeyCode::C, chip8::types::Key::B),
+    (KeyCode::V, chip8::types::Key::F),
 ];
 
 #[macroquad::main(window_conf)]
 async fn main() {
     const DRAW_METHOD: DrawMethod = DrawMethod::REAL;
+    let mut ticks_per_sec = 700.0;
+    // let mut ticks_per_sec = 1400.0;
     let mut pause_emulation: bool = false;
     let mut debug_draw: bool = true;
 
@@ -117,14 +134,16 @@ async fn main() {
 
     let mut chip = Chip8::new();
     _ = chip.load_rom(rom, 0x200);
-    let mut display = display::Display::new(chip.get_screen());
+    let mut display = display::Display::new(chip.get_screen(), DISPLAY_ROWS, DISPLAY_COLS);
 
     // Time per step at 700 Hz
-    let step_duration = 1.0 / 700.0;
     let mut last_step_time = get_time();
 
     loop {
         clear_background(GRAY);
+        // TODO: Fix the way cycles are executed per frame, maybe? /Technically/ They should be
+        //       evenly distributed between frame draws, rather than front-loaded all at once...
+        let step_duration = 1.0 / ticks_per_sec;
         match DRAW_METHOD {
             DrawMethod::RAW => {
                 let reader = display.screen.lock().unwrap();
@@ -171,8 +190,8 @@ async fn main() {
 
         // Draw debug if enabled
         if debug_draw {
-            let debug_x: f32 = 18.0;
-            let debug_y: f32 = 18.0;
+            let debug_x: f32 = 12.0;
+            let debug_y: f32 = 0.0;
             let font_size: f32 = 20.0;
 
             chip.get_state()
@@ -190,11 +209,12 @@ async fn main() {
         }
 
         // Handle user input
-        chip.reset_key_state();
         let keys_pressed = get_keys_down();
         for (k, v) in KEY_MAP.iter() {
             if keys_pressed.contains(k) {
                 chip.set_key_state(*v, true);
+            } else {
+                chip.set_key_state(*v, false);
             }
         }
 
@@ -204,16 +224,13 @@ async fn main() {
         }
         // Pause / Unpause updates
         if is_key_pressed(KeyCode::P) {
-            pause_emulation = match pause_emulation {
-                true => {
-                    // We have to reinitialize the last step time so that the CPU doesn't
-                    // try to 'catch up' for all the cycles that should have happened
-                    // during the paused period
-                    last_step_time = get_time();
-                    false
-                }
-                false => true,
-            };
+            if pause_emulation {
+                // We have to reinitialize the last step time so that the CPU doesn't
+                // try to 'catch up' for all the cycles that should have happened
+                // during the paused period
+                last_step_time = get_time();
+            }
+            pause_emulation = !pause_emulation;
         }
 
         if pause_emulation == false {

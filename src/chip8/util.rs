@@ -51,3 +51,13 @@ macro_rules! invalid_opcode {
         panic!("Invalid opcode: {:#X}", $opcode)
     };
 }
+
+#[macro_export]
+macro_rules! ensure_super_chip {
+    ($enabled:expr) => {
+        if !$enabled {
+            panic!("Invalid opcode - Super-Chip only");
+        }
+    };
+}
+
