@@ -15,7 +15,7 @@ use macroquad::audio::{play_sound_once, Sound};
 mod chip8;
 mod display;
 use chip8::Chip8;
-use crate::chip8::{ DISPLAY_ROWS, DISPLAY_COLS};
+use chip8::{DISPLAY_COLS, DISPLAY_ROWS};
 
 const WINDOW_HEIGHT: i32 = 256;
 const WINDOW_WIDTH: i32 = 512;
@@ -109,7 +109,11 @@ const KEY_MAP: &[(KeyCode, chip8::types::Key)] = &[
     (KeyCode::C, chip8::types::Key::B),
     (KeyCode::V, chip8::types::Key::F),
 ];
-
+pub fn square(num: i32) -> i32 {
+    let x: Option<i32> = Some(5);
+    let x = x.expect("hello, world");
+    return x;
+}
 #[macroquad::main(window_conf)]
 async fn main() {
     const DRAW_METHOD: DrawMethod = DrawMethod::REAL;
@@ -217,6 +221,21 @@ async fn main() {
             } else {
                 chip.set_key_state(*v, false);
             }
+        }
+
+        // Switch modes
+        if is_key_pressed(KeyCode::Key8) {
+            chip.set_quirks_mode(chip8::quirks::Quirks::new(chip8::quirks::Mode::Chip8Modern));
+        }
+        if is_key_pressed(KeyCode::Key9) {
+            chip.set_quirks_mode(chip8::quirks::Quirks::new(
+                chip8::quirks::Mode::SuperChipModern,
+            ));
+        }
+        if is_key_pressed(KeyCode::Key0) {
+            chip.set_quirks_mode(chip8::quirks::Quirks::new(
+                chip8::quirks::Mode::SuperChipLegacy,
+            ));
         }
 
         // Toggle debug output

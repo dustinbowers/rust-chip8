@@ -1,11 +1,11 @@
 use macroquad::rand::rand;
-use std::sync::{Arc, Mutex};
-use quirks::Mode::SuperChipModern;
+use quirks::Mode::*;
 use quirks::Quirks;
+use std::sync::{Arc, Mutex};
 
 #[macro_use]
 mod util;
-mod quirks;
+pub mod quirks;
 pub mod types;
 
 pub const DISPLAY_ROWS: usize = 64;
@@ -30,7 +30,7 @@ pub struct Chip8 {
     halt_input_register: u8,
     halt_for_input: bool,
     wait_for_vblank: bool,
-    quirks: Quirks
+    quirks: Quirks,
 }
 
 impl Chip8 {
@@ -52,10 +52,18 @@ impl Chip8 {
             halt_input_register: 0,
             halt_for_input: false,
             wait_for_vblank: false,
-            quirks: Quirks::new(SuperChipModern)
+            quirks: Quirks::new(SuperChipModern),
         };
         c.load_font();
         return c;
+    }
+
+    pub fn get_quirks_mode(self) -> Quirks {
+        return self.quirks;
+    }
+
+    pub fn set_quirks_mode(&mut self, quirks: Quirks) {
+        self.quirks = quirks;
     }
 
     fn load_font(&mut self) {
@@ -153,7 +161,10 @@ impl Chip8 {
             "{}\nhalt_input_register: {:#X}",
             s, self.halt_input_register
         );
-        s = format!("{}\nsuper-chip: {:?}\thires: {:?}", s, self.super_chip_enabled, self.hires_mode);
+        s = format!(
+            "{}\nsuper-chip: {:?}\thires: {:?}",
+            s, self.super_chip_enabled, self.hires_mode
+        );
 
         s
     }
@@ -198,7 +209,7 @@ impl Chip8 {
 
                         // QUIRK: Scrolling in superchip lowres 'modern' (incorrectly) requires doubling
                         //        In legacy, it doesn't
-                        let mut scroll_distance= n;
+                        let mut scroll_distance = n;
                         if self.hires_mode == false {
                             scroll_distance *= 2;
                         }
@@ -229,7 +240,7 @@ impl Chip8 {
 
                         // QUIRK: Scrolling in superchip lowres 'modern' (incorrectly) requires doubling
                         //        In legacy, it doesn't
-                        let mut scroll_distance= 4;
+                        let mut scroll_distance = 4;
                         if self.hires_mode == false {
                             scroll_distance *= 2;
                         }
@@ -290,13 +301,13 @@ impl Chip8 {
             }
             0x3000 => {
                 // (3xkk) SE Vx, byte - skip if equal
-                if self.v[get_x!(opcode) as usize] == get_kk!(opcode) as u8 {
+                if self.v[get_x!(opcode)] == get_kk!(opcode) {
                     self.pc += 2;
                 }
             }
             0x4000 => {
                 // (4xkk) SNE Vx, byte - skip if not equal
-                if self.v[get_x!(opcode)] != get_kk!(opcode) as u8 {
+                if self.v[get_x!(opcode)] != get_kk!(opcode) {
                     self.pc += 2;
                 }
             }
@@ -327,19 +338,23 @@ impl Chip8 {
                         // (8xy1) - OR Vx, Vy - Compute V_x |= V_y
                         self.v[get_x!(opcode)] |= self.v[get_y!(opcode)];
                         // reset Vf for Chip, not SCHIP
-                        // self.v[0xF] = 0;
+                        if self.quirks.vf_reset {
+                            self.v[0xF] = 0;
+                        }
                     }
                     0x2 => {
                         // (8xy2) - AND Vx, Vy - Compute V_x &= V_y
                         self.v[get_x!(opcode)] &= self.v[get_y!(opcode)];
-                        // reset Vf for Chip, not SCHIP
-                        // self.v[0xF] = 0;
+                        if self.quirks.vf_reset {
+                            self.v[0xF] = 0;
+                        }
                     }
                     0x3 => {
                         // (8xy3) - XOR Vx, Vy - Compute V_x ^= V_y
                         self.v[get_x!(opcode)] ^= self.v[get_y!(opcode)];
-                        // reset Vf for Chip, not SCHIP
-                        // self.v[0xF] = 0;
+                        if self.quirks.vf_reset {
+                            self.v[0xF] = 0;
+                        }
                     }
                     0x4 => {
                         // 8xy4 - ADD Vx, Vy - Compute V_x += V_y, set overflow
@@ -366,6 +381,10 @@ impl Chip8 {
                     0x6 => {
                         // (8xy6) - SHR Vx - Compute V_x >>= 1, store least-sig bit in VF
                         let x = get_x!(opcode);
+                        if self.quirks.shifting_vx == false {
+                            let y = get_y!(opcode);
+                            self.v[x] = self.v[y];
+                        }
                         let v_x = self.v[x];
                         self.v[x] = v_x >> 1;
                         self.v[0xF] = v_x & 0x1;
@@ -384,6 +403,10 @@ impl Chip8 {
                     0xE => {
                         // (8xyE) - SHL Vx - Computer V_x <<= 1,
                         let x = get_x!(opcode);
+                        if self.quirks.shifting_vx == false {
+                            let y = get_y!(opcode);
+                            self.v[x] = self.v[y];
+                        }
                         let v_x = self.v[x];
                         self.v[x] = v_x << 1;
                         self.v[0xF] = (v_x >> 7) & 0x1;
@@ -417,9 +440,7 @@ impl Chip8 {
                         let x = get_x!(opcode);
                         self.v[x] as u16
                     }
-                    false => {
-                        self.v[0] as u16
-                    }
+                    false => self.v[0] as u16,
                 };
                 self.pc = jump_offset + get_nnn!(opcode);
             }
@@ -443,9 +464,20 @@ impl Chip8 {
                         true => {
                             for j in 0..8 {
                                 let bit = (sprite_byte >> j) & 0x1;
-                                let screen_x = ((col as u16 + (7 - j)) % DISPLAY_COLS as u16) as u8;
-                                let screen_y =
-                                    ((row as u16 + byte_ind as u16) % DISPLAY_ROWS as u16) as u8;
+                                let mut screen_x = col % DISPLAY_COLS as u8;
+                                let mut screen_y = row % DISPLAY_ROWS as u8;
+
+                                screen_x += 7 - j;
+                                screen_y += byte_ind;
+
+                                if self.quirks.clipping {
+                                    if screen_x as usize >= DISPLAY_COLS {
+                                        continue;
+                                    }
+                                    if screen_y as usize >= DISPLAY_ROWS {
+                                        continue;
+                                    }
+                                }
 
                                 let mut screen_writer = self.screen.lock().unwrap();
                                 let curr = &mut screen_writer[screen_y as usize][screen_x as usize];
@@ -463,18 +495,30 @@ impl Chip8 {
                             for j in 0..8 {
                                 let bit = (sprite_byte >> j) & 0x1;
 
-                                let screen_x =
-                                    ((col as u16 + (7 - j)) % (DISPLAY_COLS as u16 / 2)) as u8 * 2;
-                                let screen_y = ((row as u16 + byte_ind as u16)
-                                    % (DISPLAY_ROWS as u16 / 2))
-                                    as u8
-                                    * 2;
+                                let mut screen_x = col % (DISPLAY_COLS / 2) as u8;
+                                let mut screen_y = row % (DISPLAY_ROWS / 2) as u8;
+
+                                screen_x += (7 - j);
+                                screen_y += byte_ind;
+
+                                if self.quirks.clipping {
+                                    if screen_x as usize >= DISPLAY_COLS / 2 {
+                                        continue;
+                                    }
+                                    if screen_y as usize >= DISPLAY_ROWS / 2 {
+                                        continue;
+                                    }
+                                }
+
+                                screen_x *= 2;
+                                screen_y *= 2;
 
                                 let mut screen_writer = self.screen.lock().unwrap();
                                 for i in 0..2u8 {
                                     for j in 0..2u8 {
-                                        let curr = &mut screen_writer[(screen_y + j) as usize]
-                                            [(screen_x + i) as usize];
+                                        let curr = &mut screen_writer
+                                            [(screen_y as u8 + j) as usize]
+                                            [(screen_x as u8 + i) as usize];
                                         if bit == 1 && *curr {
                                             self.v[0xF] = 1;
                                         }
@@ -548,9 +592,6 @@ impl Chip8 {
                     0x1E => {
                         // (Fx1E) - ADD I, Vx
                         self.i += self.v[get_x!(opcode)] as u16;
-
-                        // TODO: Add a flag for this?
-                        // See: https://en.wikipedia.org/wiki/CHIP-8#cite_note-16
                     }
                     0x29 => {
                         // (Fx29) - LD F, Vx
