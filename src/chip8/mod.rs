@@ -1,8 +1,11 @@
 use macroquad::rand::rand;
 use std::sync::{Arc, Mutex};
+use quirks::Mode::SuperChipModern;
+use quirks::Quirks;
 
 #[macro_use]
 mod util;
+mod quirks;
 pub mod types;
 
 pub const DISPLAY_ROWS: usize = 64;
@@ -26,6 +29,7 @@ pub struct Chip8 {
     hires_mode: bool,
     halt_input_register: u8,
     halt_for_input: bool,
+    quirks: Quirks
 }
 
 impl Chip8 {
@@ -46,6 +50,7 @@ impl Chip8 {
             hires_mode: false,
             halt_input_register: 0,
             halt_for_input: false,
+            quirks: Quirks::new(SuperChipModern)
         };
         c.load_font();
         return c;
