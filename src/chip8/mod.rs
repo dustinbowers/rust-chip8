@@ -180,6 +180,16 @@ impl Chip8 {
         ((byte1 as u16) << 8) | (byte2 as u16)
     }
 
+    #[inline]
+    fn skip_opcode(&mut self) {
+        // XO-Chip support: skip ahead 2 opcodes if the double-width opcode 0xF000 is next
+        if self.fetch_opcode() == 0xF000 {
+            self.pc += 4;
+        } else {
+            self.pc += 2;
+        }
+    }
+
     pub fn step(&mut self) -> Result<i32, ()> {
         if self.halt_for_input {
             return Ok(0);
@@ -312,13 +322,13 @@ impl Chip8 {
             0x3000 => {
                 // (3xkk) SE Vx, byte - skip if equal
                 if self.v[get_x!(opcode)] == get_kk!(opcode) {
-                    self.pc += 2;
+                    self.skip_opcode();
                 }
             }
             0x4000 => {
                 // (4xkk) SNE Vx, byte - skip if not equal
                 if self.v[get_x!(opcode)] != get_kk!(opcode) {
-                    self.pc += 2;
+                    self.skip_opcode()
                 }
             }
             0x5000 => {
@@ -326,7 +336,7 @@ impl Chip8 {
                     0x0 => {
                         // (5xy0) - SE Vx, Vy - skip if registers are equal
                         if self.v[get_x!(opcode)] == self.v[get_y!(opcode)] {
-                            self.pc += 2;
+                            self.skip_opcode();
                         }
                     }
                     0x2 => {
@@ -458,7 +468,7 @@ impl Chip8 {
                 match get_n!(opcode) {
                     0x0 => {
                         if self.v[get_x!(opcode)] != self.v[get_y!(opcode)] {
-                            self.pc += 2;
+                            self.skip_opcode();
                         }
                     }
                     _ => {
@@ -499,13 +509,13 @@ impl Chip8 {
                     0x9E => {
                         // (Ex9E) - SKP Vx - Skip if V_x is pressed
                         if self.keyboard[self.v[get_x!(opcode)] as usize] {
-                            self.pc += 2;
+                            self.skip_opcode();
                         }
                     }
                     0xA1 => {
                         // (ExA1) - SKNP Vx - Skip if V_x isn't pressed
                         if !self.keyboard[self.v[get_x!(opcode)] as usize] {
-                            self.pc += 2;
+                            self.skip_opcode();
                         }
                     }
                     _ => {
