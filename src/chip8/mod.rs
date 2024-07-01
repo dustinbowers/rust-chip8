@@ -202,10 +202,10 @@ impl Chip8 {
                         ensure_super_chip!(self.super_chip_enabled);
                         let mut screen_writer = self.screen.lock().unwrap();
                         let n = get_n!(opcode) as usize;
-
-                        // QUIRK: Scrolling in superchip lowres 'modern' (incorrectly) requires doubling
-                        //        In legacy, it doesn't
                         let mut scroll_distance = n;
+
+                        // SuperChip 'modern' low-res scrolling requires doubling
+                        // See: https://github.com/Timendus/chip8-test-suite/blob/main/legacy-superchip.md#how-a-design-flaw-morphed-over-time
                         if self.hires_mode == false {
                             scroll_distance *= 2;
                         }
@@ -234,7 +234,7 @@ impl Chip8 {
                         ensure_super_chip!(self.super_chip_enabled);
                         let mut screen_writer = self.screen.lock().unwrap();
 
-                        // QUIRK: Scrolling in superchip lowres 'modern' (incorrectly) requires doubling
+                        // QUIRK: Scrolling in superchip lowres 'modern' (incorrectly) requires doubling.
                         //        In legacy, it doesn't
                         let mut scroll_distance = 4;
                         if self.hires_mode == false {
@@ -561,18 +561,7 @@ impl Chip8 {
                         self.v[get_x!(opcode)] = self.dt;
                     }
                     0x0A => {
-                        // (Fx0A) - LD Vx, K
-                        // Halt for input
-                        // match self.halt_for_input {
-                        //     true => {
-                        //         self.pc -= 2;
-                        //     }
-                        //     false => {
-                        //         let x = get_x!(opcode);
-                        //         self.halt_input_register = x as u8;
-                        //         self.halt_for_input = true;
-                        //     }
-                        // }
+                        // (Fx0A) - LD Vx, K - Halt for input, then store it in Vx
                         let x = get_x!(opcode);
                         self.halt_input_register = x as u8;
                         self.halt_for_input = true;
