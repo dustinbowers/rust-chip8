@@ -1,11 +1,14 @@
 # CHIP-8 Emulator
 
-An emulator written in [Rust](https://www.rust-lang.org/) that uses [Macroquad](https://macroquad.rs/) for rendering.
+An emulator written in [Rust](https://www.rust-lang.org/) using [Macroquad](https://macroquad.rs/) for rendering
 
-Currently supported modes:
+Currently supported extensions:
 - [CHIP-8](https://en.wikipedia.org/wiki/CHIP-8)
 - Super-Chip 1.1 (Modern)
 - [Super-Chip 1.1 (Legacy)](https://github.com/Chromatophore/HP48-Superchip/blob/master/binaries/SCHIP_origin.txt)
+
+In progress:
+- [XO-Chip](https://johnearnest.github.io/Octo/docs/XO-ChipSpecification.html)
 
 ## What is CHIP-8?
 
