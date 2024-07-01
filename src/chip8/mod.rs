@@ -428,14 +428,11 @@ impl Chip8 {
             }
             0xB000 => {
                 // (Bnnn) - JP V0, addr - Jump to V0 (or Vx) + addr
-                let jump_offset: u16 = match self.quirks.jump_plus_vx {
-                    true => {
-                        let x = get_x!(opcode);
-                        self.v[x] as u16
-                    }
-                    false => self.v[0] as u16,
-                };
-                self.pc = jump_offset + get_nnn!(opcode);
+                if self.quirks.jump_plus_vx {
+                    self.pc = self.v[get_x!(opcode)] as u16 + get_nnn!(opcode);
+                } else {
+                    self.pc = self.v[0] as u16 + get_nnn!(opcode);
+                }
             }
             0xC000 => {
                 // (Cxkk) - RND Vx, byte - Bitwise and kk with random number [0,255]
