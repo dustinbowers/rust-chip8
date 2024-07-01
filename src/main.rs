@@ -207,16 +207,33 @@ async fn main() {
 
             let quirks = chip.get_quirks_mode();
             let s = format!("Mode: {}", quirks.mode_label);
-            draw_text(&s, WINDOW_WIDTH as f32 - 200.0, WINDOW_HEIGHT as f32 - 4.0, 20.0, RED);
+            draw_text(
+                &s,
+                WINDOW_WIDTH as f32 - 200.0,
+                WINDOW_HEIGHT as f32 - 4.0,
+                20.0,
+                RED,
+            );
 
             let now = get_time();
             let frame_delta = now - last_frame_time;
-            let fps = 1.0/frame_delta;
-            draw_text(&format!("FPS: {:?}", fps as u32), WINDOW_WIDTH as f32 - 64.0, 12.0, 20.0, RED);
-            draw_text(&format!("TPF: {:?}", ticks_per_frame as u32), WINDOW_WIDTH as f32 - 80.0, 24.0, 20.0, RED);
+            let fps = 1.0 / frame_delta;
+            draw_text(
+                &format!("FPS: {:?}", fps as u32),
+                WINDOW_WIDTH as f32 - 64.0,
+                12.0,
+                20.0,
+                RED,
+            );
+            draw_text(
+                &format!("TPF: {:?}", ticks_per_frame as u32),
+                WINDOW_WIDTH as f32 - 80.0,
+                24.0,
+                20.0,
+                RED,
+            );
 
             last_frame_time = now;
-
         }
 
         // Handle user input
@@ -231,8 +248,7 @@ async fn main() {
 
         // Switch modes
         if is_key_pressed(KeyCode::Key8) {
-            chip.set_quirks_mode(chip8::quirks::Quirks::new(
-                chip8::quirks::Mode::Chip8Modern));
+            chip.set_quirks_mode(chip8::quirks::Quirks::new(chip8::quirks::Mode::Chip8Modern));
         }
         if is_key_pressed(KeyCode::Key9) {
             chip.set_quirks_mode(chip8::quirks::Quirks::new(
