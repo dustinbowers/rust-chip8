@@ -31,6 +31,8 @@ pub struct Chip8 {
     halt_for_input: bool,
     wait_for_vblank: bool,
     quirks: Quirks,
+    audio_pitch_vx: u8,
+    audio_pattern_buffer: Vec<u8>,
 }
 
 impl Chip8 {
@@ -53,6 +55,8 @@ impl Chip8 {
             halt_for_input: false,
             wait_for_vblank: false,
             quirks: Quirks::new(XoChip),
+            audio_pitch_vx: 0,
+            audio_pattern_buffer: vec![0u8, 16],
         };
         c.load_font();
         return c;
@@ -524,88 +528,107 @@ impl Chip8 {
                 }
             }
             0xF000 => {
-                // Misc
-                match get_kk!(opcode) {
-                    0x07 => {
-                        // (Fx07) - LD Vx, DT
-                        self.v[get_x!(opcode)] = self.dt;
+                match get_nnn!(opcode) {
+                    0x000 => {
+                        // XO-CHIP Support: (0xF000) -
+
                     }
-                    0x0A => {
-                        // (Fx0A) - LD Vx, K - Halt for input, then store it in Vx
-                        let x = get_x!(opcode);
-                        self.halt_input_register = x as u8;
-                        self.halt_for_input = true;
-                    }
-                    0x15 => {
-                        // (Fx15) - LD DT, Vx
-                        self.dt = self.v[get_x!(opcode)];
-                    }
-                    0x18 => {
-                        // (Fx18) - LD ST, Vx
-                        self.st = self.v[get_x!(opcode)];
-                    }
-                    0x1E => {
-                        // (Fx1E) - ADD I, Vx
-                        self.i += self.v[get_x!(opcode)] as u16;
-                    }
-                    0x29 => {
-                        // (Fx29) - LD F, Vx
-                        self.i = (self.v[get_x!(opcode)] as u16) * 5 + 0x50;
-                    }
-                    0x30 => {
-                        // FX30*    Point I to 10-byte font sprite for digit VX (0..9)
-                        ensure_super_chip!(self.super_chip_enabled);
-                        let v_x = self.v[get_x!(opcode)];
-                        self.i = ((types::FONT_OFFSET + 80) + (v_x as usize * 10)) as u16
-                    }
-                    0x33 => {
-                        // (Fx33) - LD B, Vx
-                        let v_x = self.v[get_x!(opcode)];
-                        let i_usize = self.i as usize;
-                        self.memory[i_usize] = (v_x as u16 / 100) as u8;
-                        self.memory[i_usize + 1] = (v_x % 100) / 10;
-                        self.memory[i_usize + 2] = v_x % 10;
-                    }
-                    0x55 => {
-                        // (Fx55) - LD [I], Vx - Store V0..VX in memory starting at i
-                        let x = get_x!(opcode);
-                        for i in 0..=x {
-                            self.memory[self.i as usize + i] = self.v[i];
+                    0x002 => {
+                        // XO-CHIP Support: (0xF002) - load 16 bytes audio pattern pointed to by I into audio pattern buffer
+                        for offset in 0..16 {
+                            self.audio_pattern_buffer[offset] = self.memory[self.i as usize + offset];
                         }
-                        if self.quirks.load_store_index_increase {
-                            self.i += x as u16 + 1;
-                        }
-                    }
-                    0x65 => {
-                        // (Fx65) - LD Vx, [I] - Load V0..VX in memory starting at i
-                        let x = get_x!(opcode);
-                        for i in 0..=x {
-                            self.v[i] = self.memory[self.i as usize + i];
-                        }
-                        if self.quirks.load_store_index_increase {
-                            self.i += x as u16 + 1;
-                        }
-                    }
-                    0x75 => {
-                        // FX75*    Store V0..VX in RPL user flags (X <= 7)
-                        ensure_super_chip!(self.super_chip_enabled);
-                        let x = get_x!(opcode);
-                        if x > 8 {
-                            invalid_opcode!(opcode);
-                        }
-                        self.rpl[x] = self.v[x];
-                    }
-                    0x85 => {
-                        // FX85*    Read V0..VX from RPL user flags (X <= 7)
-                        ensure_super_chip!(self.super_chip_enabled);
-                        let x = get_x!(opcode);
-                        if x > 8 {
-                            invalid_opcode!(opcode);
-                        }
-                        self.v[x] = self.rpl[x];
                     }
                     _ => {
-                        invalid_opcode!(opcode);
+                        // Misc
+                        match get_kk!(opcode) {
+                            0x07 => {
+                                // (Fx07) - LD Vx, DT
+                                self.v[get_x!(opcode)] = self.dt;
+                            }
+                            0x0A => {
+                                // (Fx0A) - LD Vx, K - Halt for input, then store it in Vx
+                                let x = get_x!(opcode);
+                                self.halt_input_register = x as u8;
+                                self.halt_for_input = true;
+                            }
+                            0x15 => {
+                                // (Fx15) - LD DT, Vx
+                                self.dt = self.v[get_x!(opcode)];
+                            }
+                            0x18 => {
+                                // (Fx18) - LD ST, Vx
+                                self.st = self.v[get_x!(opcode)];
+                            }
+                            0x1E => {
+                                // (Fx1E) - ADD I, Vx
+                                self.i += self.v[get_x!(opcode)] as u16;
+                            }
+                            0x29 => {
+                                // (Fx29) - LD F, Vx
+                                self.i = (self.v[get_x!(opcode)] as u16) * 5 + 0x50;
+                            }
+                            0x30 => {
+                                // FX30*    Point I to 10-byte font sprite for digit VX (0..9)
+                                ensure_super_chip!(self.super_chip_enabled);
+                                let v_x = self.v[get_x!(opcode)];
+                                self.i = ((types::FONT_OFFSET + 80) + (v_x as usize * 10)) as u16
+                            }
+                            0x33 => {
+                                // (Fx33) - LD B, Vx
+                                let v_x = self.v[get_x!(opcode)];
+                                let i_usize = self.i as usize;
+                                self.memory[i_usize] = (v_x as u16 / 100) as u8;
+                                self.memory[i_usize + 1] = (v_x % 100) / 10;
+                                self.memory[i_usize + 2] = v_x % 10;
+                            }
+                            0x3A => {
+                                // XO-CHIP Support: (0xFX3a) - set audio pitch
+                                let x = self.v[get_x!(opcode)];
+                                self.audio_pitch_vx = x;
+                            }
+                            0x55 => {
+                                // (Fx55) - LD [I], Vx - Store V0..VX in memory starting at i
+                                let x = get_x!(opcode);
+                                for i in 0..=x {
+                                    self.memory[self.i as usize + i] = self.v[i];
+                                }
+                                if self.quirks.load_store_index_increase {
+                                    self.i += x as u16 + 1;
+                                }
+                            }
+                            0x65 => {
+                                // (Fx65) - LD Vx, [I] - Load V0..VX in memory starting at i
+                                let x = get_x!(opcode);
+                                for i in 0..=x {
+                                    self.v[i] = self.memory[self.i as usize + i];
+                                }
+                                if self.quirks.load_store_index_increase {
+                                    self.i += x as u16 + 1;
+                                }
+                            }
+                            0x75 => {
+                                // FX75*    Store V0..VX in RPL user flags (X <= 7)
+                                ensure_super_chip!(self.super_chip_enabled);
+                                let x = get_x!(opcode);
+                                if x > 8 {
+                                    invalid_opcode!(opcode);
+                                }
+                                self.rpl[x] = self.v[x];
+                            }
+                            0x85 => {
+                                // FX85*    Read V0..VX from RPL user flags (X <= 7)
+                                ensure_super_chip!(self.super_chip_enabled);
+                                let x = get_x!(opcode);
+                                if x > 8 {
+                                    invalid_opcode!(opcode);
+                                }
+                                self.v[x] = self.rpl[x];
+                            }
+                            _ => {
+                                invalid_opcode!(opcode);
+                            }
+                        }
                     }
                 }
             }
