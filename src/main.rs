@@ -46,7 +46,7 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
     // include_bytes!("../roms/tests/1-chip8-logo.ch8").to_vec()
     // include_bytes!("../roms/tests/3-corax+.ch8").to_vec()
     // include_bytes!("../roms/tests/4-flags.ch8").to_vec()
-    // include_bytes!("../roms/tests/5-quirks.ch8").to_vec()
+    include_bytes!("../roms/tests/5-quirks.ch8").to_vec()
     // include_bytes!("../roms/tests/6-keypad.ch8").to_vec()
     // include_bytes!("../roms/tests/7-beep.ch8").to_vec()
     // include_bytes!("../roms/tests/8-scrolling.ch8").to_vec()
@@ -59,7 +59,7 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
     // include_bytes!("../roms/schip/DVN8.ch8").to_vec()
     // include_bytes!("../roms/schip/oob_test_7.ch8").to_vec()
 
-    include_bytes!("../roms/games/Space Invaders [David Winter].ch8").to_vec()
+    // include_bytes!("../roms/games/Space Invaders [David Winter].ch8").to_vec()
 }
 
 fn window_conf() -> Conf {
@@ -247,19 +247,24 @@ async fn main() {
         }
 
         // Switch modes
-        if is_key_pressed(KeyCode::Key8) {
+        if is_key_pressed(KeyCode::Key7) {
             chip.set_quirks_mode(chip8::quirks::Quirks::new(chip8::quirks::Mode::Chip8Modern));
         }
-        if is_key_pressed(KeyCode::Key9) {
+        if is_key_pressed(KeyCode::Key8) {
             chip.set_quirks_mode(chip8::quirks::Quirks::new(
                 chip8::quirks::Mode::SuperChipModern,
             ));
         }
-        if is_key_pressed(KeyCode::Key0) {
+        if is_key_pressed(KeyCode::Key9) {
             chip.set_quirks_mode(chip8::quirks::Quirks::new(
                 chip8::quirks::Mode::SuperChipLegacy,
             ));
         }
+        if is_key_pressed(KeyCode::Key0) {
+            chip.set_quirks_mode(chip8::quirks::Quirks::new(chip8::quirks::Mode::XoChip));
+        }
+
+
         if is_key_pressed(KeyCode::Minus) {
             ticks_per_frame -= 100.0;
             ticks_per_frame = ticks_per_frame.clamp(100.0, 10000.0);
