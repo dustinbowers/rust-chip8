@@ -59,7 +59,7 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
     // include_bytes!("../roms/schip/DVN8.ch8").to_vec()
     // include_bytes!("../roms/schip/oob_test_7.ch8").to_vec()
 
-    // include_bytes!("../roms/games/Space Invaders [David Winter].ch8").to_vec()
+    include_bytes!("../roms/games/Space Invaders [David Winter].ch8").to_vec()
 }
 
 fn window_conf() -> Conf {
@@ -111,7 +111,7 @@ const KEY_MAP: &[(KeyCode, chip8::types::Key)] = &[
 #[macroquad::main(window_conf)]
 async fn main() {
     const DRAW_METHOD: DrawMethod = DrawMethod::REAL;
-    let ticks_per_sec = 700.0;
+    let mut ticks_per_frame: f64 = 700.0;
     let mut pause_emulation: bool = false;
     let mut debug_draw: bool = true;
 
@@ -135,13 +135,13 @@ async fn main() {
 
     // Time per step at 700 Hz
     let mut last_step_time = get_time();
-
+    let mut last_frame_time = get_time();
     loop {
         chip.v_blank();
         clear_background(GRAY);
         // TODO: Fix the way cycles are executed per frame, maybe? /Technically/ They should be
         //       evenly distributed between frame draws, rather than front-loaded all at once...
-        let step_duration = 1.0 / ticks_per_sec;
+        let step_duration = 1.0 / ticks_per_frame;
         match DRAW_METHOD {
             DrawMethod::RAW => {
                 let reader = display.screen.lock().unwrap();
@@ -209,6 +209,14 @@ async fn main() {
             let s = format!("Mode: {}", quirks.mode_label);
             draw_text(&s, WINDOW_WIDTH as f32 - 200.0, WINDOW_HEIGHT as f32 - 4.0, 20.0, RED);
 
+            let now = get_time();
+            let frame_delta = now - last_frame_time;
+            let fps = 1.0/frame_delta;
+            draw_text(&format!("FPS: {:?}", fps as u32), WINDOW_WIDTH as f32 - 64.0, 12.0, 20.0, RED);
+            draw_text(&format!("TPF: {:?}", ticks_per_frame as u32), WINDOW_WIDTH as f32 - 80.0, 24.0, 20.0, RED);
+
+            last_frame_time = now;
+
         }
 
         // Handle user input
@@ -223,7 +231,8 @@ async fn main() {
 
         // Switch modes
         if is_key_pressed(KeyCode::Key8) {
-            chip.set_quirks_mode(chip8::quirks::Quirks::new(chip8::quirks::Mode::Chip8Modern));
+            chip.set_quirks_mode(chip8::quirks::Quirks::new(
+                chip8::quirks::Mode::Chip8Modern));
         }
         if is_key_pressed(KeyCode::Key9) {
             chip.set_quirks_mode(chip8::quirks::Quirks::new(
@@ -234,6 +243,14 @@ async fn main() {
             chip.set_quirks_mode(chip8::quirks::Quirks::new(
                 chip8::quirks::Mode::SuperChipLegacy,
             ));
+        }
+        if is_key_pressed(KeyCode::Minus) {
+            ticks_per_frame -= 100.0;
+            ticks_per_frame = ticks_per_frame.clamp(100.0, 10000.0);
+        }
+        if is_key_pressed(KeyCode::Equal) {
+            ticks_per_frame += 100.0;
+            ticks_per_frame = ticks_per_frame.clamp(100.0, 10000.0);
         }
 
         // Toggle debug output
