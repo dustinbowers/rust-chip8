@@ -1,15 +1,14 @@
 /*
-    CHIP8 opcodes are always exactly 2 bytes.
-    These macros make it easy to examine specific parts of the opcode.
-    Below is a diagram that shows what each macro is extracting
+   CHIP8 opcodes are always exactly 2 bytes.
+   These macros make it easy to examine specific parts of the opcode.
+   Below is a diagram that shows what each macro is extracting
 
-    byte1     byte2
-	0000 0000 0000 0000
-	     x--- y--- n---
-	     nnn-----------
-	          kk-------
- */
-
+   byte1     byte2
+   0000 0000 0000 0000
+        x--- y--- n---
+        nnn-----------
+             kk-------
+*/
 
 #[macro_export]
 macro_rules! get_x {
@@ -60,4 +59,3 @@ macro_rules! ensure_super_chip {
         }
     };
 }
-
