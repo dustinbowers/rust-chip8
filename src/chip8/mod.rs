@@ -348,7 +348,7 @@ impl Chip8 {
                         let x = get_x!(opcode);
                         let y = get_y!(opcode);
                         let mut count = 0;
-                        for reg in x..y+1 {
+                        for reg in x..y + 1 {
                             self.memory[(self.i + count) as usize] = self.v[reg];
                             count += 1;
                         }
@@ -358,7 +358,7 @@ impl Chip8 {
                         let x = get_x!(opcode);
                         let y = get_y!(opcode);
                         let mut count = 0;
-                        for reg in x..y+1 {
+                        for reg in x..y + 1 {
                             self.v[reg] = self.memory[(self.i + count) as usize];
                             count += 1;
                         }
@@ -530,13 +530,17 @@ impl Chip8 {
             0xF000 => {
                 match get_nnn!(opcode) {
                     0x000 => {
-                        // XO-CHIP Support: (0xF000) -
-
+                        // XO-CHIP Support: (0xF000) - assign next 16 bit word to i
+                        let byte1 = self.memory[self.pc as usize] as u16;
+                        let byte2 = self.memory[self.pc as usize + 1] as u16;
+                        self.i = (byte1 << 8) | byte2;
+                        self.pc += 2;
                     }
                     0x002 => {
                         // XO-CHIP Support: (0xF002) - load 16 bytes audio pattern pointed to by I into audio pattern buffer
                         for offset in 0..16 {
-                            self.audio_pattern_buffer[offset] = self.memory[self.i as usize + offset];
+                            self.audio_pattern_buffer[offset] =
+                                self.memory[self.i as usize + offset];
                         }
                     }
                     _ => {
@@ -693,8 +697,7 @@ impl Chip8 {
                             }
                         }
 
-                        let curr = &mut screen_writer
-                            [screen_y as usize % DISPLAY_ROWS]
+                        let curr = &mut screen_writer[screen_y as usize % DISPLAY_ROWS]
                             [screen_x as usize % DISPLAY_COLS];
                         if bit && *curr {
                             self.v[0xF] = 1;
@@ -722,7 +725,8 @@ impl Chip8 {
                         // let mut screen_writer = self.screen.lock().unwrap();
                         for i in 0..2u8 {
                             for j in 0..2u8 {
-                                let curr = &mut screen_writer[((screen_y + j) % (DISPLAY_ROWS as u8)) as usize]
+                                let curr = &mut screen_writer
+                                    [((screen_y + j) % (DISPLAY_ROWS as u8)) as usize]
                                     [((screen_x + i) % (DISPLAY_COLS as u8)) as usize];
                                 if bit && *curr {
                                     self.v[0xF] = 1;
