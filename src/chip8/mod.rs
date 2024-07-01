@@ -195,7 +195,7 @@ impl Chip8 {
             0x0000 => {
                 match get_kk!(opcode) {
                     0x00C0..=0x00CF => {
-                        // 00CN*    Scroll display N lines down
+                        // (00CN)*    Scroll display N lines down
                         ensure_super_chip!(self.super_chip_enabled);
                         let mut screen_writer = self.screen.lock().unwrap();
                         let n = get_n!(opcode) as usize;
@@ -209,6 +209,23 @@ impl Chip8 {
 
                         screen_writer.rotate_right(scroll_distance);
                         for i in 0..scroll_distance {
+                            screen_writer[i] = vec![false; DISPLAY_COLS];
+                        }
+                    }
+                    0x00D0..=0x00DF => {
+                        // XO-CHIP: (00DN) Scroll display N lines up
+                        let mut screen_writer = self.screen.lock().unwrap();
+                        let n = get_n!(opcode) as usize;
+                        let mut scroll_distance = n;
+
+                        // SuperChip 'modern' low-res scrolling requires doubling
+                        // See: https://github.com/Timendus/chip8-test-suite/blob/main/legacy-superchip.md#how-a-design-flaw-morphed-over-time
+                        if self.hires_mode == false {
+                            scroll_distance *= 2;
+                        }
+
+                        screen_writer.rotate_left(scroll_distance);
+                        for i in DISPLAY_ROWS - scroll_distance..DISPLAY_ROWS {
                             screen_writer[i] = vec![false; DISPLAY_COLS];
                         }
                     }
@@ -616,7 +633,9 @@ impl Chip8 {
                             }
                         }
 
-                        let curr = &mut screen_writer[screen_y as usize][screen_x as usize];
+                        let curr = &mut screen_writer
+                            [screen_y as usize % DISPLAY_ROWS]
+                            [screen_x as usize % DISPLAY_COLS];
                         if bit && *curr {
                             self.v[0xF] = 1;
                         }
@@ -643,8 +662,8 @@ impl Chip8 {
                         // let mut screen_writer = self.screen.lock().unwrap();
                         for i in 0..2u8 {
                             for j in 0..2u8 {
-                                let curr = &mut screen_writer[(screen_y as u8 + j) as usize]
-                                    [(screen_x as u8 + i) as usize];
+                                let curr = &mut screen_writer[((screen_y + j) % (DISPLAY_ROWS as u8)) as usize]
+                                    [((screen_x + i) % (DISPLAY_COLS as u8)) as usize];
                                 if bit && *curr {
                                     self.v[0xF] = 1;
                                 }
