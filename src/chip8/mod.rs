@@ -33,6 +33,7 @@ pub struct Chip8 {
     quirks: Quirks,
     audio_pitch_vx: u8,
     audio_pattern_buffer: Vec<u8>,
+    bit_plane_selector: u8,
 }
 
 impl Chip8 {
@@ -57,6 +58,7 @@ impl Chip8 {
             quirks: Quirks::new(XoChip),
             audio_pitch_vx: 0,
             audio_pattern_buffer: vec![0u8, 16],
+            bit_plane_selector: 0,
         };
         c.load_font();
         return c;
@@ -544,8 +546,12 @@ impl Chip8 {
                         }
                     }
                     _ => {
-                        // Misc
+                        // Misc (Fx--)
                         match get_kk!(opcode) {
+                            0x01 => {
+                                // XO-Chip Support: select bit planes to draw on when drawing with Dxy0/Dxyn
+                                self.bit_plane_selector = self.v[get_x!(opcode)];
+                            }
                             0x07 => {
                                 // (Fx07) - LD Vx, DT
                                 self.v[get_x!(opcode)] = self.dt;
