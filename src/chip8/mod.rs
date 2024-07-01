@@ -550,7 +550,7 @@ impl Chip8 {
                         match get_kk!(opcode) {
                             0x01 => {
                                 // XO-Chip Support: select bit planes to draw on when drawing with Dxy0/Dxyn
-                                self.bit_plane_selector = self.v[get_x!(opcode)];
+                                self.bit_plane_selector = get_x!(opcode) as u8;
                             }
                             0x07 => {
                                 // (Fx07) - LD Vx, DT
