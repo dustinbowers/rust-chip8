@@ -52,7 +52,7 @@ impl Chip8 {
             halt_input_register: 0,
             halt_for_input: false,
             wait_for_vblank: false,
-            quirks: Quirks::new(SuperChipModern),
+            quirks: Quirks::new(XoChip),
         };
         c.load_font();
         return c;
@@ -322,9 +322,36 @@ impl Chip8 {
                 }
             }
             0x5000 => {
-                // (5xy0) - SE Vx, Vy - skip if registers are equal
-                if self.v[get_x!(opcode)] == self.v[get_y!(opcode)] {
-                    self.pc += 2;
+                match get_n!(opcode) {
+                    0x0 => {
+                        // (5xy0) - SE Vx, Vy - skip if registers are equal
+                        if self.v[get_x!(opcode)] == self.v[get_y!(opcode)] {
+                            self.pc += 2;
+                        }
+                    }
+                    0x2 => {
+                        // XO-CHIP: (5xy2) - write registers vX to vY to memory pointed to by I
+                        let x = get_x!(opcode);
+                        let y = get_y!(opcode);
+                        let mut count = 0;
+                        for reg in x..y+1 {
+                            self.memory[(self.i + count) as usize] = self.v[reg];
+                            count += 1;
+                        }
+                    }
+                    0x3 => {
+                        // XO-CHIP: (5xy3) - load registers vX to vY from memory pointed to by I
+                        let x = get_x!(opcode);
+                        let y = get_y!(opcode);
+                        let mut count = 0;
+                        for reg in x..y+1 {
+                            self.v[reg] = self.memory[(self.i + count) as usize];
+                            count += 1;
+                        }
+                    }
+                    _ => {
+                        invalid_opcode!(opcode);
+                    }
                 }
             }
             0x6000 => {
