@@ -54,6 +54,15 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
     // include_bytes!("../roms/programs/Keypad Test [Hap, 2006].ch8").to_vec()
 
     // include_bytes!("../roms/xo-chip/color-scroll-test-xochip.xo8").to_vec()
+    // include_bytes!("../roms/xo-chip/anEveningToDieFor.xo8").to_vec()
+    // include_bytes!("../roms/xo-chip/t8nks.xo8").to_vec()
+    // include_bytes!("../roms/xo-chip/chip8e-test.c8e").to_vec()
+    // include_bytes!("../roms/xo-chip/superneatboy.ch8").to_vec()
+    // include_bytes!("../roms/xo-chip/expedition.ch8").to_vec()
+
+    // include_bytes!("../roms/jaxe-roms/chip8archive/xochip/jub8-1.ch8").to_vec()
+    // include_bytes!("../roms/jaxe-roms/chip8archive/xochip/flutterby.ch8").to_vec()
+    include_bytes!("../roms/jaxe-roms/chip8archive/xochip/chickenScratch.ch8").to_vec()
 
     // include_bytes!("../roms/schip/octogon.ch8").to_vec()
     // include_bytes!("../roms/schip/dodge.ch8").to_vec()
@@ -62,7 +71,7 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
     // include_bytes!("../roms/schip/DVN8.ch8").to_vec()
     // include_bytes!("../roms/schip/oob_test_7.ch8").to_vec()
 
-    include_bytes!("../roms/games/Space Invaders [David Winter].ch8").to_vec()
+    // include_bytes!("../roms/games/Space Invaders [David Winter].ch8").to_vec()
 }
 
 fn window_conf() -> Conf {
@@ -116,9 +125,11 @@ const KEY_MAP: &[(KeyCode, chip8::types::Key)] = &[
 async fn main() {
 
     let color_map = vec![
-        GREEN,
+        BLACK,
         WHITE,
         GRAY,
+        LIGHTGRAY,
+        RED,
     ];
 
     const DRAW_METHOD: DrawMethod = DrawMethod::RAW; // DrawMethod::REAL;
@@ -165,10 +176,11 @@ async fn main() {
                         // let color = color_u8!(b, b, b, 255);
                         let mut color_ind : u8 = 0;
                         for i in 0..DISPLAY_LAYERS {
-                            if(c[i]) {
+                            if c[i] {
                                 color_ind |= 1 << i;
                             }
                         }
+                        // println!("color_ind = {} (0b{:04b})", color_ind, color_ind);
                         let color = color_map[color_ind as usize];
                         let x = ci as f32 * PIXEL_WIDTH;
                         let y = ri as f32 * PIXEL_HEIGHT;
