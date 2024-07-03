@@ -2,7 +2,6 @@ use macroquad::rand::rand;
 use quirks::Mode::*;
 use quirks::Quirks;
 use std::sync::{Arc, Mutex, MutexGuard};
-use crate::chip8::types::Screen;
 
 #[macro_use]
 mod util;
@@ -11,11 +10,11 @@ pub mod types;
 
 pub const DISPLAY_ROWS: usize = 64;
 pub const DISPLAY_COLS: usize = 128;
-pub const DISPLAY_LAYERS: usize = 4;
+pub const DISPLAY_LAYERS: usize = 2;
 
 pub struct Chip8 {
     screen: Arc<Mutex<types::Screen>>,
-    memory: Vec<u8>,     // [u8; 4096],
+    memory: Vec<u8>,     // [u8; 2^16],
     stack: Vec<u16>,     // [u16; 16],
     keyboard: Vec<bool>, // [bool; 16],
 
@@ -41,8 +40,14 @@ pub struct Chip8 {
 impl Chip8 {
     pub fn new() -> Self {
         let mut c = Self {
-            screen: Arc::new(Mutex::new(vec![vec![vec![false; DISPLAY_LAYERS]; DISPLAY_COLS]; DISPLAY_ROWS])),
-            memory: vec![0u8; 4096],
+            screen: Arc::new(Mutex::new(vec![
+                vec![
+                    vec![false; DISPLAY_LAYERS];
+                    DISPLAY_COLS
+                ];
+                DISPLAY_ROWS
+            ])),
+            memory: vec![0u8; 1 << 16],
             stack: vec![0u16; 16],
             keyboard: vec![false; 16],
             v: vec![0u8; 16],
@@ -59,7 +64,7 @@ impl Chip8 {
             wait_for_vblank: false,
             quirks: Quirks::new(XoChip),
             audio_pitch_vx: 0,
-            audio_pattern_buffer: vec![0u8, 16],
+            audio_pattern_buffer: vec![0u8; 16],
             bit_plane_selector: 1,
         };
         c.load_font();
@@ -82,7 +87,7 @@ impl Chip8 {
 
     pub fn load_rom(&mut self, bytes: Vec<u8>, start_offset: u16) -> Result<(), String> {
         let start_offset = start_offset as usize;
-        if bytes.len() + start_offset >= 4096 {
+        if bytes.len() + start_offset >= 1 << 16 {
             return Err("Invalid rom".to_string());
         }
         for (i, v) in bytes.iter().enumerate() {
@@ -166,7 +171,10 @@ impl Chip8 {
 
         s = format!("{}\nhalt_for_input: {:?}", s, self.halt_for_input);
         s = format!("{}\nhires: {:?}", s, self.hires_mode);
-        s = format!("{}\nbit_plane_select: 0b{:04b} ({:?})", s, self.bit_plane_selector, self.bit_plane_selector);
+        s = format!(
+            "{}\nbit_plane_select: 0b{:04b} ({:?})",
+            s, self.bit_plane_selector, self.bit_plane_selector
+        );
 
         s
     }
@@ -229,7 +237,7 @@ impl Chip8 {
                         }
 
                         for layer in 0..DISPLAY_LAYERS {
-                            if (self.bit_plane_selector >> layer) & 0b1 == 1{
+                            if (self.bit_plane_selector >> layer) & 0b1 == 1 {
                                 self.scroll_plane_down(scroll_distance, layer);
                             }
                         }
@@ -247,18 +255,16 @@ impl Chip8 {
                         }
 
                         for layer in 0..DISPLAY_LAYERS {
-                            if (self.bit_plane_selector >> layer) & 0b1 == 1{
+                            if (self.bit_plane_selector >> layer) & 0b1 == 1 {
                                 self.scroll_plane_up(scroll_distance, layer);
                             }
                         }
-
                     }
                     0x00E0 => {
                         // CLS
-                        let mut screen_writer = self.screen.lock().unwrap();
-                        for row in screen_writer.iter_mut() {
-                            for cell in row.iter_mut() {
-                                (*cell)[0] = false;
+                        for layer in 0..DISPLAY_LAYERS {
+                            if (self.bit_plane_selector >> layer) & 0b1 == 1 {
+                                self.clear_layer(layer);
                             }
                         }
                     }
@@ -272,7 +278,7 @@ impl Chip8 {
                         ensure_super_chip!(self.super_chip_enabled);
 
                         for layer in 0..DISPLAY_LAYERS {
-                            if (self.bit_plane_selector >> layer) & 0b1 == 1{
+                            if (self.bit_plane_selector >> layer) & 0b1 == 1 {
                                 println!("scrolling layer {} right", layer);
                                 self.scroll_layer_right(layer);
                             }
@@ -283,7 +289,7 @@ impl Chip8 {
                         ensure_super_chip!(self.super_chip_enabled);
 
                         for layer in 0..DISPLAY_LAYERS {
-                            if (self.bit_plane_selector >> layer) & 0b1 == 1{
+                            if (self.bit_plane_selector >> layer) & 0b1 == 1 {
                                 println!("scrolling layer {} left", layer);
                                 self.scroll_layer_left(layer);
                             }
@@ -343,20 +349,30 @@ impl Chip8 {
                         // XO-CHIP: (5xy2) - write registers vX to vY to memory pointed to by I
                         let x = get_x!(opcode);
                         let y = get_y!(opcode);
-                        let mut count = 0;
-                        for reg in x..y + 1 {
-                            self.memory[(self.i + count) as usize] = self.v[reg];
-                            count += 1;
+                        let dist = x.abs_diff(y);
+                        if x < y {
+                            for z in 0..dist + 1 {
+                                self.memory[self.i as usize + z] = self.v[x + z];
+                            }
+                        } else {
+                            for z in 0..dist + 1 {
+                                self.memory[self.i as usize + z] = self.v[x - z];
+                            }
                         }
                     }
                     0x3 => {
                         // XO-CHIP: (5xy3) - load registers vX to vY from memory pointed to by I
                         let x = get_x!(opcode);
                         let y = get_y!(opcode);
-                        let mut count = 0;
-                        for reg in x..y + 1 {
-                            self.v[reg] = self.memory[(self.i + count) as usize];
-                            count += 1;
+                        let dist = x.abs_diff(y);
+                        if x < y {
+                            for z in 0..dist + 1 {
+                                self.v[x + z] = self.memory[self.i as usize + z];
+                            }
+                        } else {
+                            for z in 0..dist + 1 {
+                                self.v[x - z] = self.memory[self.i as usize + z];
+                            }
                         }
                     }
                     _ => {
@@ -499,6 +515,7 @@ impl Chip8 {
                 let n = get_n!(opcode) as u8;
 
                 let mut page_num = 0;
+                self.v[0xF] = 0;
                 for layer in 0..DISPLAY_LAYERS {
                     if (self.bit_plane_selector >> layer) & 0b1 == 1 {
                         self.draw_sprite(col, row, n, page_num, layer);
@@ -650,15 +667,30 @@ impl Chip8 {
         Ok(1)
     }
 
+    fn clear_layer(&mut self, layer: usize) {
+        let mut screen_writer = self.screen.lock().unwrap();
+        for row in screen_writer.iter_mut() {
+            for cell in row.iter_mut() {
+                (*cell)[layer] = false;
+            }
+        }
+    }
+
     fn scroll_plane_up(&mut self, scroll_distance: usize, layer: usize) {
         let mut screen_writer = self.screen.lock().unwrap();
-        if  layer >= DISPLAY_LAYERS {
+        if layer >= DISPLAY_LAYERS {
             panic!("invalid layer index: {}", layer);
         }
         for r in 0..DISPLAY_ROWS - scroll_distance {
-            println!("scrolling up row {} by {} pixels to {} on layer {}", r, scroll_distance, r+scroll_distance, layer);
+            println!(
+                "scrolling up row {} by {} pixels to {} on layer {}",
+                r,
+                scroll_distance,
+                r + scroll_distance,
+                layer
+            );
             for c in 0..DISPLAY_COLS {
-                screen_writer[r][c][layer] = screen_writer[r+scroll_distance][c][layer];
+                screen_writer[r][c][layer] = screen_writer[r + scroll_distance][c][layer];
             }
         }
         for i in DISPLAY_ROWS - scroll_distance..DISPLAY_ROWS {
@@ -671,7 +703,7 @@ impl Chip8 {
 
     fn scroll_plane_down(&mut self, scroll_distance: usize, layer: usize) {
         let mut screen_writer = self.screen.lock().unwrap();
-        if  layer >= DISPLAY_LAYERS {
+        if layer >= DISPLAY_LAYERS {
             panic!("invalid layer index: {}", layer);
         }
         for r in (scroll_distance..DISPLAY_ROWS).rev() {
@@ -680,7 +712,9 @@ impl Chip8 {
             }
         }
         for i in 0..scroll_distance {
-            screen_writer[i][layer] = vec![false; DISPLAY_COLS];
+            for c in 0..DISPLAY_COLS {
+                screen_writer[i][c][layer] = false;
+            }
         }
     }
 
@@ -693,7 +727,7 @@ impl Chip8 {
         }
 
         for row in 0..DISPLAY_ROWS {
-            for c in scroll_distance .. DISPLAY_COLS {
+            for c in scroll_distance..DISPLAY_COLS {
                 screen_writer[row][c - scroll_distance][layer] = screen_writer[row][c][layer];
             }
             for c in DISPLAY_COLS - scroll_distance..DISPLAY_COLS {
@@ -713,7 +747,7 @@ impl Chip8 {
         let mut screen_writer = self.screen.lock().unwrap();
         for row in 0..DISPLAY_ROWS {
             for c in (scroll_distance..DISPLAY_COLS).rev() {
-                screen_writer[row][c][layer] = screen_writer[row][c-scroll_distance][layer];
+                screen_writer[row][c][layer] = screen_writer[row][c - scroll_distance][layer];
             }
             for c in 0..scroll_distance {
                 screen_writer[row][c][layer] = false;
@@ -727,7 +761,7 @@ impl Chip8 {
         // self.v[0xF] = 0;
         if n == 0 && self.hires_mode {
             // draw a SuperChip 16x16 sprite
-            let page_size = 16*16;
+            let page_size = 2 * 16;
             for r in 0..16u16 {
                 let mem_loc = sprite_offset + (page_num * page_size) + (2 * r as usize);
                 let sprite_word =
@@ -746,6 +780,8 @@ impl Chip8 {
                             continue;
                         }
                     }
+                    screen_x %= DISPLAY_COLS as u8;
+                    screen_y %= DISPLAY_ROWS as u8;
                     let curr = &mut screen_writer[screen_y as usize][screen_x as usize][layer];
                     if bit && *curr {
                         self.v[0xF] = 1;
@@ -756,7 +792,7 @@ impl Chip8 {
         } else {
             let page_size = n as usize;
             for byte_ind in 0..n {
-                let sprite_offset =sprite_offset + (page_num * page_size) + byte_ind as usize;
+                let sprite_offset = sprite_offset + (page_num * page_size) + byte_ind as usize;
                 let sprite_byte = self.memory[sprite_offset];
 
                 //draw a Chip8 8xN sprite
@@ -780,10 +816,10 @@ impl Chip8 {
 
                         let curr = &mut screen_writer[screen_y as usize % DISPLAY_ROWS]
                             [screen_x as usize % DISPLAY_COLS];
-                        if bit && (*curr)[0] {
+                        if bit && (*curr)[layer] {
                             self.v[0xF] = 1;
                         }
-                        (*curr)[0] ^= bit;
+                        (*curr)[layer] ^= bit;
                     } else {
                         let mut screen_x = col % (DISPLAY_COLS / 2) as u8;
                         let mut screen_y = row % (DISPLAY_ROWS / 2) as u8;
@@ -808,11 +844,11 @@ impl Chip8 {
                             for j in 0..2u8 {
                                 let curr = &mut screen_writer
                                     [((screen_y + j) % (DISPLAY_ROWS as u8)) as usize]
-                                    [((screen_x + i) % (DISPLAY_COLS as u8)) as usize];
-                                if bit && (*curr)[0] {
+                                    [((screen_x + i) % (DISPLAY_COLS as u8)) as usize][layer];
+                                if bit && *curr {
                                     self.v[0xF] = 1;
                                 }
-                                (*curr)[0] ^= bit;
+                                *curr ^= bit;
                             }
                         }
                     }

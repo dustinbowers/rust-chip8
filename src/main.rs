@@ -54,7 +54,7 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
     // include_bytes!("../roms/programs/Keypad Test [Hap, 2006].ch8").to_vec()
 
     // include_bytes!("../roms/xo-chip/color-scroll-test-xochip.xo8").to_vec()
-    // include_bytes!("../roms/xo-chip/anEveningToDieFor.xo8").to_vec()
+    include_bytes!("../roms/xo-chip/anEveningToDieFor.xo8").to_vec()
     // include_bytes!("../roms/xo-chip/t8nks.xo8").to_vec()
     // include_bytes!("../roms/xo-chip/chip8e-test.c8e").to_vec()
     // include_bytes!("../roms/xo-chip/superneatboy.ch8").to_vec()
@@ -62,7 +62,7 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
 
     // include_bytes!("../roms/jaxe-roms/chip8archive/xochip/jub8-1.ch8").to_vec()
     // include_bytes!("../roms/jaxe-roms/chip8archive/xochip/flutterby.ch8").to_vec()
-    include_bytes!("../roms/jaxe-roms/chip8archive/xochip/chickenScratch.ch8").to_vec()
+    // include_bytes!("../roms/jaxe-roms/chip8archive/xochip/chickenScratch.ch8").to_vec()
 
     // include_bytes!("../roms/schip/octogon.ch8").to_vec()
     // include_bytes!("../roms/schip/dodge.ch8").to_vec()
@@ -126,14 +126,14 @@ async fn main() {
 
     let color_map = vec![
         BLACK,
-        WHITE,
-        GRAY,
         LIGHTGRAY,
+        GRAY,
+        DARKGRAY,
         RED,
     ];
 
     const DRAW_METHOD: DrawMethod = DrawMethod::RAW; // DrawMethod::REAL;
-    let mut ticks_per_frame: f64 = 700.0;
+    let mut ticks_per_frame: f64 = 500.0;
     let mut pause_emulation: bool = false;
     let mut debug_draw: bool = true;
 
@@ -152,7 +152,12 @@ async fn main() {
     }
 
     let mut chip = Chip8::new();
-    _ = chip.load_rom(rom, 0x200);
+    let loaded = chip.load_rom(rom, 0x200);
+    match loaded {
+        Ok(b) => { println!("Loaded {:?} rom bytes", b); }
+        Err(err) => { panic!("{}", err); }
+    }
+
     let mut display = display::Display::new(chip.get_screen(), DISPLAY_ROWS, DISPLAY_COLS);
 
     // Time per step at 700 Hz
@@ -163,7 +168,7 @@ async fn main() {
         clear_background(GRAY);
         // TODO: Fix the way cycles are executed per frame, maybe? /Technically/ They should be
         //       evenly distributed between frame draws, rather than front-loaded all at once...
-        let step_duration = 1.0 / ticks_per_frame;
+        // let step_duration = 1.0 / ticks_per_frame;
         match DRAW_METHOD {
             DrawMethod::RAW => {
                 let reader = display.screen.lock().unwrap();
@@ -297,11 +302,11 @@ async fn main() {
 
         if is_key_pressed(KeyCode::Minus) {
             ticks_per_frame -= 100.0;
-            ticks_per_frame = ticks_per_frame.clamp(100.0, 10000.0);
+            ticks_per_frame = ticks_per_frame.clamp(100.0, 20000.0);
         }
         if is_key_pressed(KeyCode::Equal) {
             ticks_per_frame += 100.0;
-            ticks_per_frame = ticks_per_frame.clamp(100.0, 10000.0);
+            ticks_per_frame = ticks_per_frame.clamp(100.0, 20000.0);
         }
 
         // Toggle debug output
@@ -321,13 +326,9 @@ async fn main() {
 
         if pause_emulation == false {
             // Run processor
-            // Calculate the number of steps to perform based on elapsed time
-            let now = get_time();
-            let mut elapsed = now - last_step_time;
-            while elapsed >= step_duration {
+            for t in 0..ticks_per_frame as u32 {
+                // TODO: Handle errors gracefully...
                 _ = chip.step();
-                elapsed -= step_duration;
-                last_step_time += step_duration;
             }
 
             display.update();
