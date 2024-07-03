@@ -1,4 +1,4 @@
-pub type Screen = Vec<Vec<bool>>;
+pub type Screen = Vec<Vec<Vec<bool>>>;
 
 pub const FONT_OFFSET: usize = 0x050;
 

@@ -1,7 +1,7 @@
 use macroquad::rand::rand;
 use quirks::Mode::*;
 use quirks::Quirks;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 #[macro_use]
 mod util;
@@ -10,10 +10,11 @@ pub mod types;
 
 pub const DISPLAY_ROWS: usize = 64;
 pub const DISPLAY_COLS: usize = 128;
+pub const DISPLAY_LAYERS: usize = 2;
 
 pub struct Chip8 {
     screen: Arc<Mutex<types::Screen>>,
-    memory: Vec<u8>,     // [u8; 4096],
+    memory: Vec<u8>,     // [u8; 2^16],
     stack: Vec<u16>,     // [u16; 16],
     keyboard: Vec<bool>, // [bool; 16],
 
@@ -31,13 +32,22 @@ pub struct Chip8 {
     halt_for_input: bool,
     wait_for_vblank: bool,
     quirks: Quirks,
+    audio_pitch_vx: u8,
+    audio_pattern_buffer: Vec<u8>,
+    bit_plane_selector: u8,
 }
 
 impl Chip8 {
     pub fn new() -> Self {
         let mut c = Self {
-            screen: Arc::new(Mutex::new(vec![vec![false; DISPLAY_COLS]; DISPLAY_ROWS])),
-            memory: vec![0u8; 4096],
+            screen: Arc::new(Mutex::new(vec![
+                vec![
+                    vec![false; DISPLAY_LAYERS];
+                    DISPLAY_COLS
+                ];
+                DISPLAY_ROWS
+            ])),
+            memory: vec![0u8; 1 << 16],
             stack: vec![0u16; 16],
             keyboard: vec![false; 16],
             v: vec![0u8; 16],
@@ -52,7 +62,10 @@ impl Chip8 {
             halt_input_register: 0,
             halt_for_input: false,
             wait_for_vblank: false,
-            quirks: Quirks::new(SuperChipModern),
+            quirks: Quirks::new(XoChip),
+            audio_pitch_vx: 0,
+            audio_pattern_buffer: vec![0u8; 16],
+            bit_plane_selector: 1,
         };
         c.load_font();
         return c;
@@ -74,7 +87,7 @@ impl Chip8 {
 
     pub fn load_rom(&mut self, bytes: Vec<u8>, start_offset: u16) -> Result<(), String> {
         let start_offset = start_offset as usize;
-        if bytes.len() + start_offset >= 4096 {
+        if bytes.len() + start_offset >= 1 << 16 {
             return Err("Invalid rom".to_string());
         }
         for (i, v) in bytes.iter().enumerate() {
@@ -158,6 +171,10 @@ impl Chip8 {
 
         s = format!("{}\nhalt_for_input: {:?}", s, self.halt_for_input);
         s = format!("{}\nhires: {:?}", s, self.hires_mode);
+        s = format!(
+            "{}\nbit_plane_select: 0b{:04b} ({:?})",
+            s, self.bit_plane_selector, self.bit_plane_selector
+        );
 
         s
     }
@@ -180,6 +197,16 @@ impl Chip8 {
         ((byte1 as u16) << 8) | (byte2 as u16)
     }
 
+    #[inline]
+    fn skip_opcode(&mut self) {
+        // XO-Chip support: skip ahead 2 opcodes if the double-width opcode 0xF000 is next
+        if self.fetch_opcode() == 0xF000 {
+            self.pc += 4;
+        } else {
+            self.pc += 2;
+        }
+    }
+
     pub fn step(&mut self) -> Result<i32, ()> {
         if self.halt_for_input {
             return Ok(0);
@@ -193,11 +220,13 @@ impl Chip8 {
 
         match opcode & 0xF000 {
             0x0000 => {
-                match get_kk!(opcode) {
+                match get_nnn!(opcode) {
                     0x00C0..=0x00CF => {
-                        // 00CN*    Scroll display N lines down
+                        // Note: technically, 00C0 causes a crash on hardware
+                        //       but xo-chip treats it as a nop... so I'm leaving it
+
+                        // (00CN)*    Scroll display N lines down
                         ensure_super_chip!(self.super_chip_enabled);
-                        let mut screen_writer = self.screen.lock().unwrap();
                         let n = get_n!(opcode) as usize;
                         let mut scroll_distance = n;
 
@@ -207,17 +236,35 @@ impl Chip8 {
                             scroll_distance *= 2;
                         }
 
-                        screen_writer.rotate_right(scroll_distance);
-                        for i in 0..scroll_distance {
-                            screen_writer[i] = vec![false; DISPLAY_COLS];
+                        for layer in 0..DISPLAY_LAYERS {
+                            if (self.bit_plane_selector >> layer) & 0b1 == 1 {
+                                self.scroll_plane_down(scroll_distance, layer);
+                            }
+                        }
+                    }
+                    0x00D0..=0x00DF => {
+                        // XO-CHIP: (00DN) Scroll display N lines up
+
+                        let n = get_n!(opcode) as usize;
+                        let mut scroll_distance = n;
+
+                        // SuperChip 'modern' low-res scrolling requires doubling
+                        // See: https://github.com/Timendus/chip8-test-suite/blob/main/legacy-superchip.md#how-a-design-flaw-morphed-over-time
+                        if self.hires_mode == false {
+                            scroll_distance *= 2;
+                        }
+
+                        for layer in 0..DISPLAY_LAYERS {
+                            if (self.bit_plane_selector >> layer) & 0b1 == 1 {
+                                self.scroll_plane_up(scroll_distance, layer);
+                            }
                         }
                     }
                     0x00E0 => {
                         // CLS
-                        let mut screen_writer = self.screen.lock().unwrap();
-                        for row in screen_writer.iter_mut() {
-                            for cell in row.iter_mut() {
-                                *cell = false;
+                        for layer in 0..DISPLAY_LAYERS {
+                            if (self.bit_plane_selector >> layer) & 0b1 == 1 {
+                                self.clear_layer(layer);
                             }
                         }
                     }
@@ -229,36 +276,22 @@ impl Chip8 {
                     0x00FB => {
                         // 00FB*    Scroll display 4 pixels right
                         ensure_super_chip!(self.super_chip_enabled);
-                        let mut screen_writer = self.screen.lock().unwrap();
 
-                        // QUIRK: Scrolling in superchip lowres 'modern' (incorrectly) requires doubling.
-                        //        In legacy, it doesn't
-                        let mut scroll_distance = 4;
-                        if self.hires_mode == false {
-                            scroll_distance *= 2;
-                        }
-
-                        for row in 0..DISPLAY_ROWS {
-                            screen_writer[row].rotate_right(scroll_distance);
-                            for c in 0..scroll_distance {
-                                screen_writer[row][c] = false;
+                        for layer in 0..DISPLAY_LAYERS {
+                            if (self.bit_plane_selector >> layer) & 0b1 == 1 {
+                                println!("scrolling layer {} right", layer);
+                                self.scroll_layer_right(layer);
                             }
                         }
                     }
                     0x00FC => {
                         // 00FC*    Scroll display 4 pixels left
                         ensure_super_chip!(self.super_chip_enabled);
-                        let mut screen_writer = self.screen.lock().unwrap();
 
-                        let mut scroll_distance = 4;
-                        if self.hires_mode == false {
-                            scroll_distance *= 2;
-                        }
-
-                        for row in 0..DISPLAY_ROWS {
-                            screen_writer[row].rotate_left(scroll_distance);
-                            for c in DISPLAY_COLS - scroll_distance..DISPLAY_COLS {
-                                screen_writer[row][c] = false;
+                        for layer in 0..DISPLAY_LAYERS {
+                            if (self.bit_plane_selector >> layer) & 0b1 == 1 {
+                                println!("scrolling layer {} left", layer);
+                                self.scroll_layer_left(layer);
                             }
                         }
                     }
@@ -295,19 +328,56 @@ impl Chip8 {
             0x3000 => {
                 // (3xkk) SE Vx, byte - skip if equal
                 if self.v[get_x!(opcode)] == get_kk!(opcode) {
-                    self.pc += 2;
+                    self.skip_opcode();
                 }
             }
             0x4000 => {
                 // (4xkk) SNE Vx, byte - skip if not equal
                 if self.v[get_x!(opcode)] != get_kk!(opcode) {
-                    self.pc += 2;
+                    self.skip_opcode()
                 }
             }
             0x5000 => {
-                // (5xy0) - SE Vx, Vy - skip if registers are equal
-                if self.v[get_x!(opcode)] == self.v[get_y!(opcode)] {
-                    self.pc += 2;
+                match get_n!(opcode) {
+                    0x0 => {
+                        // (5xy0) - SE Vx, Vy - skip if registers are equal
+                        if self.v[get_x!(opcode)] == self.v[get_y!(opcode)] {
+                            self.skip_opcode();
+                        }
+                    }
+                    0x2 => {
+                        // XO-CHIP: (5xy2) - write registers vX to vY to memory pointed to by I
+                        let x = get_x!(opcode);
+                        let y = get_y!(opcode);
+                        let dist = x.abs_diff(y);
+                        if x < y {
+                            for z in 0..dist + 1 {
+                                self.memory[self.i as usize + z] = self.v[x + z];
+                            }
+                        } else {
+                            for z in 0..dist + 1 {
+                                self.memory[self.i as usize + z] = self.v[x - z];
+                            }
+                        }
+                    }
+                    0x3 => {
+                        // XO-CHIP: (5xy3) - load registers vX to vY from memory pointed to by I
+                        let x = get_x!(opcode);
+                        let y = get_y!(opcode);
+                        let dist = x.abs_diff(y);
+                        if x < y {
+                            for z in 0..dist + 1 {
+                                self.v[x + z] = self.memory[self.i as usize + z];
+                            }
+                        } else {
+                            for z in 0..dist + 1 {
+                                self.v[x - z] = self.memory[self.i as usize + z];
+                            }
+                        }
+                    }
+                    _ => {
+                        invalid_opcode!(opcode);
+                    }
                 }
             }
             0x6000 => {
@@ -414,7 +484,7 @@ impl Chip8 {
                 match get_n!(opcode) {
                     0x0 => {
                         if self.v[get_x!(opcode)] != self.v[get_y!(opcode)] {
-                            self.pc += 2;
+                            self.skip_opcode();
                         }
                     }
                     _ => {
@@ -436,14 +506,22 @@ impl Chip8 {
             }
             0xC000 => {
                 // (Cxkk) - RND Vx, byte - Bitwise and kk with random number [0,255]
-                self.v[get_x!(opcode)] = (rand() % 256) as u8 & get_kk!(opcode);
+                self.v[get_x!(opcode)] = rand() as u8 & get_kk!(opcode);
             }
             0xD000 => {
                 // (Dxyn) - DRW Vx, Vy, nibble
                 let col = self.v[get_x!(opcode)];
                 let row = self.v[get_y!(opcode)];
                 let n = get_n!(opcode) as u8;
-                self.draw_sprite(col, row, n);
+
+                let mut page_num = 0;
+                self.v[0xF] = 0;
+                for layer in 0..DISPLAY_LAYERS {
+                    if (self.bit_plane_selector >> layer) & 0b1 == 1 {
+                        self.draw_sprite(col, row, n, page_num, layer);
+                        page_num += 1;
+                    }
+                }
 
                 if self.quirks.display_wait {
                     self.wait_for_vblank = true;
@@ -455,13 +533,13 @@ impl Chip8 {
                     0x9E => {
                         // (Ex9E) - SKP Vx - Skip if V_x is pressed
                         if self.keyboard[self.v[get_x!(opcode)] as usize] {
-                            self.pc += 2;
+                            self.skip_opcode();
                         }
                     }
                     0xA1 => {
                         // (ExA1) - SKNP Vx - Skip if V_x isn't pressed
                         if !self.keyboard[self.v[get_x!(opcode)] as usize] {
-                            self.pc += 2;
+                            self.skip_opcode();
                         }
                     }
                     _ => {
@@ -470,88 +548,115 @@ impl Chip8 {
                 }
             }
             0xF000 => {
-                // Misc
-                match get_kk!(opcode) {
-                    0x07 => {
-                        // (Fx07) - LD Vx, DT
-                        self.v[get_x!(opcode)] = self.dt;
+                match get_nnn!(opcode) {
+                    0x000 => {
+                        // XO-CHIP Support: (0xF000) - assign next 16 bit word to i
+                        let byte1 = self.memory[self.pc as usize] as u16;
+                        let byte2 = self.memory[self.pc as usize + 1] as u16;
+                        self.i = (byte1 << 8) | byte2;
+                        self.pc += 2;
                     }
-                    0x0A => {
-                        // (Fx0A) - LD Vx, K - Halt for input, then store it in Vx
-                        let x = get_x!(opcode);
-                        self.halt_input_register = x as u8;
-                        self.halt_for_input = true;
-                    }
-                    0x15 => {
-                        // (Fx15) - LD DT, Vx
-                        self.dt = self.v[get_x!(opcode)];
-                    }
-                    0x18 => {
-                        // (Fx18) - LD ST, Vx
-                        self.st = self.v[get_x!(opcode)];
-                    }
-                    0x1E => {
-                        // (Fx1E) - ADD I, Vx
-                        self.i += self.v[get_x!(opcode)] as u16;
-                    }
-                    0x29 => {
-                        // (Fx29) - LD F, Vx
-                        self.i = (self.v[get_x!(opcode)] as u16) * 5 + 0x50;
-                    }
-                    0x30 => {
-                        // FX30*    Point I to 10-byte font sprite for digit VX (0..9)
-                        ensure_super_chip!(self.super_chip_enabled);
-                        let v_x = self.v[get_x!(opcode)];
-                        self.i = ((types::FONT_OFFSET + 80) + (v_x as usize * 10)) as u16
-                    }
-                    0x33 => {
-                        // (Fx33) - LD B, Vx
-                        let v_x = self.v[get_x!(opcode)];
-                        let i_usize = self.i as usize;
-                        self.memory[i_usize] = (v_x as u16 / 100) as u8;
-                        self.memory[i_usize + 1] = (v_x % 100) / 10;
-                        self.memory[i_usize + 2] = v_x % 10;
-                    }
-                    0x55 => {
-                        // (Fx55) - LD [I], Vx - Store V0..VX in memory starting at i
-                        let x = get_x!(opcode);
-                        for i in 0..=x {
-                            self.memory[self.i as usize + i] = self.v[i];
+                    0x002 => {
+                        // XO-CHIP Support: (0xF002) - load 16 bytes audio pattern pointed to by I into audio pattern buffer
+                        for offset in 0..16 {
+                            self.audio_pattern_buffer[offset] =
+                                self.memory[self.i as usize + offset];
                         }
-                        if self.quirks.load_store_index_increase {
-                            self.i += x as u16 + 1;
-                        }
-                    }
-                    0x65 => {
-                        // (Fx65) - LD Vx, [I] - Load V0..VX in memory starting at i
-                        let x = get_x!(opcode);
-                        for i in 0..=x {
-                            self.v[i] = self.memory[self.i as usize + i];
-                        }
-                        if self.quirks.load_store_index_increase {
-                            self.i += x as u16 + 1;
-                        }
-                    }
-                    0x75 => {
-                        // FX75*    Store V0..VX in RPL user flags (X <= 7)
-                        ensure_super_chip!(self.super_chip_enabled);
-                        let x = get_x!(opcode);
-                        if x > 8 {
-                            invalid_opcode!(opcode);
-                        }
-                        self.rpl[x] = self.v[x];
-                    }
-                    0x85 => {
-                        // FX85*    Read V0..VX from RPL user flags (X <= 7)
-                        ensure_super_chip!(self.super_chip_enabled);
-                        let x = get_x!(opcode);
-                        if x > 8 {
-                            invalid_opcode!(opcode);
-                        }
-                        self.v[x] = self.rpl[x];
                     }
                     _ => {
-                        invalid_opcode!(opcode);
+                        // Misc (Fx--)
+                        match get_kk!(opcode) {
+                            0x01 => {
+                                // XO-Chip Support: (0xFX01) - select bit planes to draw on when drawing with Dxy0/Dxyn
+                                self.bit_plane_selector = get_x!(opcode) as u8;
+                            }
+                            0x07 => {
+                                // (Fx07) - LD Vx, DT
+                                self.v[get_x!(opcode)] = self.dt;
+                            }
+                            0x0A => {
+                                // (Fx0A) - LD Vx, K - Halt for input, then store it in Vx
+                                let x = get_x!(opcode);
+                                self.halt_input_register = x as u8;
+                                self.halt_for_input = true;
+                            }
+                            0x15 => {
+                                // (Fx15) - LD DT, Vx
+                                self.dt = self.v[get_x!(opcode)];
+                            }
+                            0x18 => {
+                                // (Fx18) - LD ST, Vx
+                                self.st = self.v[get_x!(opcode)];
+                            }
+                            0x1E => {
+                                // (Fx1E) - ADD I, Vx
+                                self.i += self.v[get_x!(opcode)] as u16;
+                            }
+                            0x29 => {
+                                // (Fx29) - LD F, Vx
+                                self.i = (self.v[get_x!(opcode)] as u16) * 5 + 0x50;
+                            }
+                            0x30 => {
+                                // FX30*    Point I to 10-byte font sprite for digit VX (0..9)
+                                ensure_super_chip!(self.super_chip_enabled);
+                                let v_x = self.v[get_x!(opcode)];
+                                self.i = ((types::FONT_OFFSET + 80) + (v_x as usize * 10)) as u16
+                            }
+                            0x33 => {
+                                // (Fx33) - LD B, Vx
+                                let v_x = self.v[get_x!(opcode)];
+                                let i_usize = self.i as usize;
+                                self.memory[i_usize] = (v_x as u16 / 100) as u8;
+                                self.memory[i_usize + 1] = (v_x % 100) / 10;
+                                self.memory[i_usize + 2] = v_x % 10;
+                            }
+                            0x3A => {
+                                // XO-CHIP Support: (0xFX3a) - set audio pitch
+                                let x = self.v[get_x!(opcode)];
+                                self.audio_pitch_vx = x;
+                            }
+                            0x55 => {
+                                // (Fx55) - LD [I], Vx - Store V0..VX in memory starting at i
+                                let x = get_x!(opcode);
+                                for i in 0..=x {
+                                    self.memory[self.i as usize + i] = self.v[i];
+                                }
+                                if self.quirks.load_store_index_increase {
+                                    self.i += x as u16 + 1;
+                                }
+                            }
+                            0x65 => {
+                                // (Fx65) - LD Vx, [I] - Load V0..VX in memory starting at i
+                                let x = get_x!(opcode);
+                                for i in 0..=x {
+                                    self.v[i] = self.memory[self.i as usize + i];
+                                }
+                                if self.quirks.load_store_index_increase {
+                                    self.i += x as u16 + 1;
+                                }
+                            }
+                            0x75 => {
+                                // FX75*    Store V0..VX in RPL user flags (X <= 7)
+                                ensure_super_chip!(self.super_chip_enabled);
+                                let x = get_x!(opcode);
+                                if x > 8 {
+                                    invalid_opcode!(opcode);
+                                }
+                                self.rpl[x] = self.v[x];
+                            }
+                            0x85 => {
+                                // FX85*    Read V0..VX from RPL user flags (X <= 7)
+                                ensure_super_chip!(self.super_chip_enabled);
+                                let x = get_x!(opcode);
+                                if x > 8 {
+                                    invalid_opcode!(opcode);
+                                }
+                                self.v[x] = self.rpl[x];
+                            }
+                            _ => {
+                                invalid_opcode!(opcode);
+                            }
+                        }
                     }
                 }
             }
@@ -562,14 +667,103 @@ impl Chip8 {
         Ok(1)
     }
 
-    fn draw_sprite(&mut self, col: u8, row: u8, n: u8) {
+    fn clear_layer(&mut self, layer: usize) {
         let mut screen_writer = self.screen.lock().unwrap();
-        let sprite_offset = self.i;
-        self.v[0xF] = 0;
+        for row in screen_writer.iter_mut() {
+            for cell in row.iter_mut() {
+                (*cell)[layer] = false;
+            }
+        }
+    }
+
+    fn scroll_plane_up(&mut self, scroll_distance: usize, layer: usize) {
+        let mut screen_writer = self.screen.lock().unwrap();
+        if layer >= DISPLAY_LAYERS {
+            panic!("invalid layer index: {}", layer);
+        }
+        for r in 0..DISPLAY_ROWS - scroll_distance {
+            println!(
+                "scrolling up row {} by {} pixels to {} on layer {}",
+                r,
+                scroll_distance,
+                r + scroll_distance,
+                layer
+            );
+            for c in 0..DISPLAY_COLS {
+                screen_writer[r][c][layer] = screen_writer[r + scroll_distance][c][layer];
+            }
+        }
+        for i in DISPLAY_ROWS - scroll_distance..DISPLAY_ROWS {
+            println!("clearing row {} on layer {}", i, layer);
+            for c in 0..DISPLAY_COLS {
+                screen_writer[i][c][layer] = false;
+            }
+        }
+    }
+
+    fn scroll_plane_down(&mut self, scroll_distance: usize, layer: usize) {
+        let mut screen_writer = self.screen.lock().unwrap();
+        if layer >= DISPLAY_LAYERS {
+            panic!("invalid layer index: {}", layer);
+        }
+        for r in (scroll_distance..DISPLAY_ROWS).rev() {
+            for c in 0..DISPLAY_COLS {
+                screen_writer[r][c][layer] = screen_writer[r - scroll_distance][c][layer];
+            }
+        }
+        for i in 0..scroll_distance {
+            for c in 0..DISPLAY_COLS {
+                screen_writer[i][c][layer] = false;
+            }
+        }
+    }
+
+    fn scroll_layer_left(&mut self, layer: usize) {
+        let mut screen_writer = self.screen.lock().unwrap();
+
+        let mut scroll_distance = 4;
+        if self.hires_mode == false {
+            scroll_distance *= 2;
+        }
+
+        for row in 0..DISPLAY_ROWS {
+            for c in scroll_distance..DISPLAY_COLS {
+                screen_writer[row][c - scroll_distance][layer] = screen_writer[row][c][layer];
+            }
+            for c in DISPLAY_COLS - scroll_distance..DISPLAY_COLS {
+                screen_writer[row][c][layer] = false;
+            }
+        }
+    }
+
+    fn scroll_layer_right(&mut self, layer: usize) {
+        // QUIRK: Scrolling in superchip lowres 'modern' (incorrectly) requires doubling.
+        //        In legacy, it doesn't
+        let mut scroll_distance = 4;
+        if self.hires_mode == false {
+            scroll_distance *= 2;
+        }
+
+        let mut screen_writer = self.screen.lock().unwrap();
+        for row in 0..DISPLAY_ROWS {
+            for c in (scroll_distance..DISPLAY_COLS).rev() {
+                screen_writer[row][c][layer] = screen_writer[row][c - scroll_distance][layer];
+            }
+            for c in 0..scroll_distance {
+                screen_writer[row][c][layer] = false;
+            }
+        }
+    }
+
+    fn draw_sprite(&mut self, col: u8, row: u8, n: u8, page_num: usize, layer: usize) {
+        let mut screen_writer = self.screen.lock().unwrap();
+        let sprite_offset = self.i as usize;
+        // self.v[0xF] = 0;
         if n == 0 && self.hires_mode {
             // draw a SuperChip 16x16 sprite
+            let page_size = 2 * 16;
             for r in 0..16u16 {
-                let mem_loc = (sprite_offset + (2 * r)) as usize;
+                let mem_loc = sprite_offset + (page_num * page_size) + (2 * r as usize);
                 let sprite_word =
                     (self.memory[mem_loc] as u16) << 8 | self.memory[mem_loc + 1] as u16;
                 for c in 0..16 {
@@ -586,7 +780,9 @@ impl Chip8 {
                             continue;
                         }
                     }
-                    let curr = &mut screen_writer[screen_y as usize][screen_x as usize];
+                    screen_x %= DISPLAY_COLS as u8;
+                    screen_y %= DISPLAY_ROWS as u8;
+                    let curr = &mut screen_writer[screen_y as usize][screen_x as usize][layer];
                     if bit && *curr {
                         self.v[0xF] = 1;
                     }
@@ -594,8 +790,10 @@ impl Chip8 {
                 }
             }
         } else {
+            let page_size = n as usize;
             for byte_ind in 0..n {
-                let sprite_byte = self.memory[(sprite_offset + byte_ind as u16) as usize];
+                let sprite_offset = sprite_offset + (page_num * page_size) + byte_ind as usize;
+                let sprite_byte = self.memory[sprite_offset];
 
                 //draw a Chip8 8xN sprite
                 for j in 0..8 {
@@ -616,11 +814,12 @@ impl Chip8 {
                             }
                         }
 
-                        let curr = &mut screen_writer[screen_y as usize][screen_x as usize];
-                        if bit && *curr {
+                        let curr = &mut screen_writer[screen_y as usize % DISPLAY_ROWS]
+                            [screen_x as usize % DISPLAY_COLS];
+                        if bit && (*curr)[layer] {
                             self.v[0xF] = 1;
                         }
-                        *curr ^= bit;
+                        (*curr)[layer] ^= bit;
                     } else {
                         let mut screen_x = col % (DISPLAY_COLS / 2) as u8;
                         let mut screen_y = row % (DISPLAY_ROWS / 2) as u8;
@@ -643,8 +842,9 @@ impl Chip8 {
                         // let mut screen_writer = self.screen.lock().unwrap();
                         for i in 0..2u8 {
                             for j in 0..2u8 {
-                                let curr = &mut screen_writer[(screen_y as u8 + j) as usize]
-                                    [(screen_x as u8 + i) as usize];
+                                let curr = &mut screen_writer
+                                    [((screen_y + j) % (DISPLAY_ROWS as u8)) as usize]
+                                    [((screen_x + i) % (DISPLAY_COLS as u8)) as usize][layer];
                                 if bit && *curr {
                                     self.v[0xF] = 1;
                                 }

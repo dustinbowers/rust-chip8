@@ -2,6 +2,7 @@ pub enum Mode {
     Chip8Modern,
     SuperChipModern,
     SuperChipLegacy,
+    XoChip,
 }
 pub struct Quirks {
     pub mode_label: String,
@@ -42,6 +43,15 @@ impl Quirks {
                 clipping: true,
                 shifting_vx: true,
                 jump_plus_vx: true,
+            },
+            Mode::XoChip => Quirks {
+                mode_label: "xo-chip".to_string(),
+                vf_reset: false,
+                load_store_index_increase: true,
+                display_wait: false,
+                clipping: false,
+                shifting_vx: false,
+                jump_plus_vx: false,
             },
         }
     }

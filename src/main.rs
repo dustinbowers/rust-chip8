@@ -16,6 +16,7 @@ mod chip8;
 mod display;
 use chip8::Chip8;
 use chip8::{DISPLAY_COLS, DISPLAY_ROWS};
+use crate::chip8::DISPLAY_LAYERS;
 
 const WINDOW_HEIGHT: i32 = 256;
 const WINDOW_WIDTH: i32 = 512;
@@ -52,6 +53,17 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
     // include_bytes!("../roms/tests/8-scrolling.ch8").to_vec()
     // include_bytes!("../roms/programs/Keypad Test [Hap, 2006].ch8").to_vec()
 
+    // include_bytes!("../roms/xo-chip/color-scroll-test-xochip.xo8").to_vec()
+    include_bytes!("../roms/xo-chip/anEveningToDieFor.xo8").to_vec()
+    // include_bytes!("../roms/xo-chip/t8nks.xo8").to_vec()
+    // include_bytes!("../roms/xo-chip/chip8e-test.c8e").to_vec()
+    // include_bytes!("../roms/xo-chip/superneatboy.ch8").to_vec()
+    // include_bytes!("../roms/xo-chip/expedition.ch8").to_vec()
+
+    // include_bytes!("../roms/jaxe-roms/chip8archive/xochip/jub8-1.ch8").to_vec()
+    // include_bytes!("../roms/jaxe-roms/chip8archive/xochip/flutterby.ch8").to_vec()
+    // include_bytes!("../roms/jaxe-roms/chip8archive/xochip/chickenScratch.ch8").to_vec()
+
     // include_bytes!("../roms/schip/octogon.ch8").to_vec()
     // include_bytes!("../roms/schip/dodge.ch8").to_vec()
     // include_bytes!("../roms/schip/binding.ch8").to_vec()
@@ -59,7 +71,7 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
     // include_bytes!("../roms/schip/DVN8.ch8").to_vec()
     // include_bytes!("../roms/schip/oob_test_7.ch8").to_vec()
 
-    include_bytes!("../roms/games/Space Invaders [David Winter].ch8").to_vec()
+    // include_bytes!("../roms/games/Space Invaders [David Winter].ch8").to_vec()
 }
 
 fn window_conf() -> Conf {
@@ -108,10 +120,20 @@ const KEY_MAP: &[(KeyCode, chip8::types::Key)] = &[
     (KeyCode::V, chip8::types::Key::F),
 ];
 
+
 #[macroquad::main(window_conf)]
 async fn main() {
-    const DRAW_METHOD: DrawMethod = DrawMethod::REAL;
-    let mut ticks_per_frame: f64 = 700.0;
+
+    let color_map = vec![
+        BLACK,
+        LIGHTGRAY,
+        GRAY,
+        DARKGRAY,
+        RED,
+    ];
+
+    const DRAW_METHOD: DrawMethod = DrawMethod::RAW; // DrawMethod::REAL;
+    let mut ticks_per_frame: f64 = 500.0;
     let mut pause_emulation: bool = false;
     let mut debug_draw: bool = true;
 
@@ -130,7 +152,12 @@ async fn main() {
     }
 
     let mut chip = Chip8::new();
-    _ = chip.load_rom(rom, 0x200);
+    let loaded = chip.load_rom(rom, 0x200);
+    match loaded {
+        Ok(b) => { println!("Loaded {:?} rom bytes", b); }
+        Err(err) => { panic!("{}", err); }
+    }
+
     let mut display = display::Display::new(chip.get_screen(), DISPLAY_ROWS, DISPLAY_COLS);
 
     // Time per step at 700 Hz
@@ -141,17 +168,25 @@ async fn main() {
         clear_background(GRAY);
         // TODO: Fix the way cycles are executed per frame, maybe? /Technically/ They should be
         //       evenly distributed between frame draws, rather than front-loaded all at once...
-        let step_duration = 1.0 / ticks_per_frame;
+        // let step_duration = 1.0 / ticks_per_frame;
         match DRAW_METHOD {
             DrawMethod::RAW => {
                 let reader = display.screen.lock().unwrap();
                 for (ri, r) in reader.iter().enumerate() {
                     for (ci, c) in r.iter().enumerate() {
-                        let b = match *c {
-                            true => 255,
-                            false => 0,
-                        };
-                        let color = color_u8!(b, b, b, 255);
+                        // let b = match (*c)[0] {
+                        //     true => 255,
+                        //     false => 0,
+                        // };
+                        // let color = color_u8!(b, b, b, 255);
+                        let mut color_ind : u8 = 0;
+                        for i in 0..DISPLAY_LAYERS {
+                            if c[i] {
+                                color_ind |= 1 << i;
+                            }
+                        }
+                        // println!("color_ind = {} (0b{:04b})", color_ind, color_ind);
+                        let color = color_map[color_ind as usize];
                         let x = ci as f32 * PIXEL_WIDTH;
                         let y = ri as f32 * PIXEL_HEIGHT;
                         draw_rectangle(x, y, PIXEL_WIDTH, PIXEL_HEIGHT, color);
@@ -247,26 +282,31 @@ async fn main() {
         }
 
         // Switch modes
-        if is_key_pressed(KeyCode::Key8) {
+        if is_key_pressed(KeyCode::Key7) {
             chip.set_quirks_mode(chip8::quirks::Quirks::new(chip8::quirks::Mode::Chip8Modern));
         }
-        if is_key_pressed(KeyCode::Key9) {
+        if is_key_pressed(KeyCode::Key8) {
             chip.set_quirks_mode(chip8::quirks::Quirks::new(
                 chip8::quirks::Mode::SuperChipModern,
             ));
         }
-        if is_key_pressed(KeyCode::Key0) {
+        if is_key_pressed(KeyCode::Key9) {
             chip.set_quirks_mode(chip8::quirks::Quirks::new(
                 chip8::quirks::Mode::SuperChipLegacy,
             ));
         }
+        if is_key_pressed(KeyCode::Key0) {
+            chip.set_quirks_mode(chip8::quirks::Quirks::new(chip8::quirks::Mode::XoChip));
+        }
+
+
         if is_key_pressed(KeyCode::Minus) {
             ticks_per_frame -= 100.0;
-            ticks_per_frame = ticks_per_frame.clamp(100.0, 10000.0);
+            ticks_per_frame = ticks_per_frame.clamp(100.0, 20000.0);
         }
         if is_key_pressed(KeyCode::Equal) {
             ticks_per_frame += 100.0;
-            ticks_per_frame = ticks_per_frame.clamp(100.0, 10000.0);
+            ticks_per_frame = ticks_per_frame.clamp(100.0, 20000.0);
         }
 
         // Toggle debug output
@@ -286,13 +326,9 @@ async fn main() {
 
         if pause_emulation == false {
             // Run processor
-            // Calculate the number of steps to perform based on elapsed time
-            let now = get_time();
-            let mut elapsed = now - last_step_time;
-            while elapsed >= step_duration {
+            for t in 0..ticks_per_frame as u32 {
+                // TODO: Handle errors gracefully...
                 _ = chip.step();
-                elapsed -= step_duration;
-                last_step_time += step_duration;
             }
 
             display.update();
