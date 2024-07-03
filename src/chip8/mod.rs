@@ -164,6 +164,7 @@ impl Chip8 {
 
         s = format!("{}\nhalt_for_input: {:?}", s, self.halt_for_input);
         s = format!("{}\nhires: {:?}", s, self.hires_mode);
+        s = format!("{}\nbit_plane_select: 0b{:04b} ({:?})", s, self.bit_plane_selector, self.bit_plane_selector);
 
         s
     }
@@ -209,8 +210,11 @@ impl Chip8 {
 
         match opcode & 0xF000 {
             0x0000 => {
-                match get_kk!(opcode) {
+                match get_nnn!(opcode) {
                     0x00C0..=0x00CF => {
+                        // Note: technically, 00C0 causes a crash on hardware
+                        //       but xo-chip treats it as a nop... so I'm leaving it
+
                         // (00CN)*    Scroll display N lines down
                         ensure_super_chip!(self.super_chip_enabled);
                         let mut screen_writer = self.screen.lock().unwrap();
@@ -223,7 +227,11 @@ impl Chip8 {
                             scroll_distance *= 2;
                         }
 
-                        screen_writer.rotate_right(scroll_distance);
+                        for r in (scroll_distance..DISPLAY_ROWS).rev() {
+                            for c in 0..DISPLAY_COLS {
+                                screen_writer[r][c] = screen_writer[r-scroll_distance][c];
+                            }
+                        }
                         for i in 0..scroll_distance {
                             screen_writer[i] = vec![false; DISPLAY_COLS];
                         }
@@ -240,7 +248,11 @@ impl Chip8 {
                             scroll_distance *= 2;
                         }
 
-                        screen_writer.rotate_left(scroll_distance);
+                        for r in 0..DISPLAY_ROWS - scroll_distance {
+                            for c in 0..DISPLAY_COLS {
+                                screen_writer[r][c] = screen_writer[r+scroll_distance][c];
+                            }
+                        }
                         for i in DISPLAY_ROWS - scroll_distance..DISPLAY_ROWS {
                             screen_writer[i] = vec![false; DISPLAY_COLS];
                         }
@@ -272,7 +284,9 @@ impl Chip8 {
                         }
 
                         for row in 0..DISPLAY_ROWS {
-                            screen_writer[row].rotate_right(scroll_distance);
+                            for c in (scroll_distance..DISPLAY_COLS).rev() {
+                                screen_writer[row][c] = screen_writer[row][c-scroll_distance];
+                            }
                             for c in 0..scroll_distance {
                                 screen_writer[row][c] = false;
                             }
@@ -289,7 +303,9 @@ impl Chip8 {
                         }
 
                         for row in 0..DISPLAY_ROWS {
-                            screen_writer[row].rotate_left(scroll_distance);
+                            for c in scroll_distance .. DISPLAY_COLS {
+                                screen_writer[row][c - scroll_distance] = screen_writer[row][c];
+                            }
                             for c in DISPLAY_COLS - scroll_distance..DISPLAY_COLS {
                                 screen_writer[row][c] = false;
                             }
@@ -496,7 +512,7 @@ impl Chip8 {
             }
             0xC000 => {
                 // (Cxkk) - RND Vx, byte - Bitwise and kk with random number [0,255]
-                self.v[get_x!(opcode)] = (rand() % 256) as u8 & get_kk!(opcode);
+                self.v[get_x!(opcode)] = rand() as u8 & get_kk!(opcode);
             }
             0xD000 => {
                 // (Dxyn) - DRW Vx, Vy, nibble

@@ -46,11 +46,13 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
     // include_bytes!("../roms/tests/1-chip8-logo.ch8").to_vec()
     // include_bytes!("../roms/tests/3-corax+.ch8").to_vec()
     // include_bytes!("../roms/tests/4-flags.ch8").to_vec()
-    include_bytes!("../roms/tests/5-quirks.ch8").to_vec()
+    // include_bytes!("../roms/tests/5-quirks.ch8").to_vec()
     // include_bytes!("../roms/tests/6-keypad.ch8").to_vec()
     // include_bytes!("../roms/tests/7-beep.ch8").to_vec()
     // include_bytes!("../roms/tests/8-scrolling.ch8").to_vec()
     // include_bytes!("../roms/programs/Keypad Test [Hap, 2006].ch8").to_vec()
+
+    include_bytes!("../roms/xo-chip/color-scroll-test-xochip.xo8").to_vec()
 
     // include_bytes!("../roms/schip/octogon.ch8").to_vec()
     // include_bytes!("../roms/schip/dodge.ch8").to_vec()
