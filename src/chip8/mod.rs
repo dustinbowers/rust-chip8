@@ -1,7 +1,8 @@
 use macroquad::rand::rand;
 use quirks::Mode::*;
 use quirks::Quirks;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
+use crate::chip8::types::Screen;
 
 #[macro_use]
 mod util;
@@ -10,6 +11,7 @@ pub mod types;
 
 pub const DISPLAY_ROWS: usize = 64;
 pub const DISPLAY_COLS: usize = 128;
+pub const DISPLAY_LAYERS: usize = 4;
 
 pub struct Chip8 {
     screen: Arc<Mutex<types::Screen>>,
@@ -39,7 +41,7 @@ pub struct Chip8 {
 impl Chip8 {
     pub fn new() -> Self {
         let mut c = Self {
-            screen: Arc::new(Mutex::new(vec![vec![false; DISPLAY_COLS]; DISPLAY_ROWS])),
+            screen: Arc::new(Mutex::new(vec![vec![vec![false; DISPLAY_LAYERS]; DISPLAY_COLS]; DISPLAY_ROWS])),
             memory: vec![0u8; 4096],
             stack: vec![0u16; 16],
             keyboard: vec![false; 16],
@@ -217,7 +219,6 @@ impl Chip8 {
 
                         // (00CN)*    Scroll display N lines down
                         ensure_super_chip!(self.super_chip_enabled);
-                        let mut screen_writer = self.screen.lock().unwrap();
                         let n = get_n!(opcode) as usize;
                         let mut scroll_distance = n;
 
@@ -227,18 +228,15 @@ impl Chip8 {
                             scroll_distance *= 2;
                         }
 
-                        for r in (scroll_distance..DISPLAY_ROWS).rev() {
-                            for c in 0..DISPLAY_COLS {
-                                screen_writer[r][c] = screen_writer[r-scroll_distance][c];
+                        for layer in 0..DISPLAY_LAYERS {
+                            if (self.bit_plane_selector >> layer) & 0b1 == 1{
+                                self.scroll_plane_down(scroll_distance, layer);
                             }
-                        }
-                        for i in 0..scroll_distance {
-                            screen_writer[i] = vec![false; DISPLAY_COLS];
                         }
                     }
                     0x00D0..=0x00DF => {
                         // XO-CHIP: (00DN) Scroll display N lines up
-                        let mut screen_writer = self.screen.lock().unwrap();
+
                         let n = get_n!(opcode) as usize;
                         let mut scroll_distance = n;
 
@@ -248,21 +246,19 @@ impl Chip8 {
                             scroll_distance *= 2;
                         }
 
-                        for r in 0..DISPLAY_ROWS - scroll_distance {
-                            for c in 0..DISPLAY_COLS {
-                                screen_writer[r][c] = screen_writer[r+scroll_distance][c];
+                        for layer in 0..DISPLAY_LAYERS {
+                            if (self.bit_plane_selector >> layer) & 0b1 == 1{
+                                self.scroll_plane_up(scroll_distance, layer);
                             }
                         }
-                        for i in DISPLAY_ROWS - scroll_distance..DISPLAY_ROWS {
-                            screen_writer[i] = vec![false; DISPLAY_COLS];
-                        }
+
                     }
                     0x00E0 => {
                         // CLS
                         let mut screen_writer = self.screen.lock().unwrap();
                         for row in screen_writer.iter_mut() {
                             for cell in row.iter_mut() {
-                                *cell = false;
+                                (*cell)[0] = false;
                             }
                         }
                     }
@@ -274,40 +270,22 @@ impl Chip8 {
                     0x00FB => {
                         // 00FB*    Scroll display 4 pixels right
                         ensure_super_chip!(self.super_chip_enabled);
-                        let mut screen_writer = self.screen.lock().unwrap();
 
-                        // QUIRK: Scrolling in superchip lowres 'modern' (incorrectly) requires doubling.
-                        //        In legacy, it doesn't
-                        let mut scroll_distance = 4;
-                        if self.hires_mode == false {
-                            scroll_distance *= 2;
-                        }
-
-                        for row in 0..DISPLAY_ROWS {
-                            for c in (scroll_distance..DISPLAY_COLS).rev() {
-                                screen_writer[row][c] = screen_writer[row][c-scroll_distance];
-                            }
-                            for c in 0..scroll_distance {
-                                screen_writer[row][c] = false;
+                        for layer in 0..DISPLAY_LAYERS {
+                            if (self.bit_plane_selector >> layer) & 0b1 == 1{
+                                println!("scrolling layer {} right", layer);
+                                self.scroll_layer_right(layer);
                             }
                         }
                     }
                     0x00FC => {
                         // 00FC*    Scroll display 4 pixels left
                         ensure_super_chip!(self.super_chip_enabled);
-                        let mut screen_writer = self.screen.lock().unwrap();
 
-                        let mut scroll_distance = 4;
-                        if self.hires_mode == false {
-                            scroll_distance *= 2;
-                        }
-
-                        for row in 0..DISPLAY_ROWS {
-                            for c in scroll_distance .. DISPLAY_COLS {
-                                screen_writer[row][c - scroll_distance] = screen_writer[row][c];
-                            }
-                            for c in DISPLAY_COLS - scroll_distance..DISPLAY_COLS {
-                                screen_writer[row][c] = false;
+                        for layer in 0..DISPLAY_LAYERS {
+                            if (self.bit_plane_selector >> layer) & 0b1 == 1{
+                                println!("scrolling layer {} left", layer);
+                                self.scroll_layer_left(layer);
                             }
                         }
                     }
@@ -519,7 +497,14 @@ impl Chip8 {
                 let col = self.v[get_x!(opcode)];
                 let row = self.v[get_y!(opcode)];
                 let n = get_n!(opcode) as u8;
-                self.draw_sprite(col, row, n);
+
+                let mut page_num = 0;
+                for layer in 0..DISPLAY_LAYERS {
+                    if (self.bit_plane_selector >> layer) & 0b1 == 1 {
+                        self.draw_sprite(col, row, n, page_num, layer);
+                        page_num += 1;
+                    }
+                }
 
                 if self.quirks.display_wait {
                     self.wait_for_vblank = true;
@@ -665,14 +650,86 @@ impl Chip8 {
         Ok(1)
     }
 
-    fn draw_sprite(&mut self, col: u8, row: u8, n: u8) {
+    fn scroll_plane_up(&mut self, scroll_distance: usize, layer: usize) {
         let mut screen_writer = self.screen.lock().unwrap();
-        let sprite_offset = self.i;
-        self.v[0xF] = 0;
+        if  layer >= DISPLAY_LAYERS {
+            panic!("invalid layer index: {}", layer);
+        }
+        for r in 0..DISPLAY_ROWS - scroll_distance {
+            println!("scrolling up row {} by {} pixels to {} on layer {}", r, scroll_distance, r+scroll_distance, layer);
+            for c in 0..DISPLAY_COLS {
+                screen_writer[r][c][layer] = screen_writer[r+scroll_distance][c][layer];
+            }
+        }
+        for i in DISPLAY_ROWS - scroll_distance..DISPLAY_ROWS {
+            println!("clearing row {} on layer {}", i, layer);
+            for c in 0..DISPLAY_COLS {
+                screen_writer[i][c][layer] = false;
+            }
+        }
+    }
+
+    fn scroll_plane_down(&mut self, scroll_distance: usize, layer: usize) {
+        let mut screen_writer = self.screen.lock().unwrap();
+        if  layer >= DISPLAY_LAYERS {
+            panic!("invalid layer index: {}", layer);
+        }
+        for r in (scroll_distance..DISPLAY_ROWS).rev() {
+            for c in 0..DISPLAY_COLS {
+                screen_writer[r][c][layer] = screen_writer[r - scroll_distance][c][layer];
+            }
+        }
+        for i in 0..scroll_distance {
+            screen_writer[i][layer] = vec![false; DISPLAY_COLS];
+        }
+    }
+
+    fn scroll_layer_left(&mut self, layer: usize) {
+        let mut screen_writer = self.screen.lock().unwrap();
+
+        let mut scroll_distance = 4;
+        if self.hires_mode == false {
+            scroll_distance *= 2;
+        }
+
+        for row in 0..DISPLAY_ROWS {
+            for c in scroll_distance .. DISPLAY_COLS {
+                screen_writer[row][c - scroll_distance][layer] = screen_writer[row][c][layer];
+            }
+            for c in DISPLAY_COLS - scroll_distance..DISPLAY_COLS {
+                screen_writer[row][c][layer] = false;
+            }
+        }
+    }
+
+    fn scroll_layer_right(&mut self, layer: usize) {
+        // QUIRK: Scrolling in superchip lowres 'modern' (incorrectly) requires doubling.
+        //        In legacy, it doesn't
+        let mut scroll_distance = 4;
+        if self.hires_mode == false {
+            scroll_distance *= 2;
+        }
+
+        let mut screen_writer = self.screen.lock().unwrap();
+        for row in 0..DISPLAY_ROWS {
+            for c in (scroll_distance..DISPLAY_COLS).rev() {
+                screen_writer[row][c][layer] = screen_writer[row][c-scroll_distance][layer];
+            }
+            for c in 0..scroll_distance {
+                screen_writer[row][c][layer] = false;
+            }
+        }
+    }
+
+    fn draw_sprite(&mut self, col: u8, row: u8, n: u8, page_num: usize, layer: usize) {
+        let mut screen_writer = self.screen.lock().unwrap();
+        let sprite_offset = self.i as usize;
+        // self.v[0xF] = 0;
         if n == 0 && self.hires_mode {
             // draw a SuperChip 16x16 sprite
+            let page_size = 16*16;
             for r in 0..16u16 {
-                let mem_loc = (sprite_offset + (2 * r)) as usize;
+                let mem_loc = sprite_offset + (page_num * page_size) + (2 * r as usize);
                 let sprite_word =
                     (self.memory[mem_loc] as u16) << 8 | self.memory[mem_loc + 1] as u16;
                 for c in 0..16 {
@@ -689,7 +746,7 @@ impl Chip8 {
                             continue;
                         }
                     }
-                    let curr = &mut screen_writer[screen_y as usize][screen_x as usize];
+                    let curr = &mut screen_writer[screen_y as usize][screen_x as usize][layer];
                     if bit && *curr {
                         self.v[0xF] = 1;
                     }
@@ -697,8 +754,10 @@ impl Chip8 {
                 }
             }
         } else {
+            let page_size = n as usize;
             for byte_ind in 0..n {
-                let sprite_byte = self.memory[(sprite_offset + byte_ind as u16) as usize];
+                let sprite_offset =sprite_offset + (page_num * page_size) + byte_ind as usize;
+                let sprite_byte = self.memory[sprite_offset];
 
                 //draw a Chip8 8xN sprite
                 for j in 0..8 {
@@ -721,10 +780,10 @@ impl Chip8 {
 
                         let curr = &mut screen_writer[screen_y as usize % DISPLAY_ROWS]
                             [screen_x as usize % DISPLAY_COLS];
-                        if bit && *curr {
+                        if bit && (*curr)[0] {
                             self.v[0xF] = 1;
                         }
-                        *curr ^= bit;
+                        (*curr)[0] ^= bit;
                     } else {
                         let mut screen_x = col % (DISPLAY_COLS / 2) as u8;
                         let mut screen_y = row % (DISPLAY_ROWS / 2) as u8;
@@ -750,10 +809,10 @@ impl Chip8 {
                                 let curr = &mut screen_writer
                                     [((screen_y + j) % (DISPLAY_ROWS as u8)) as usize]
                                     [((screen_x + i) % (DISPLAY_COLS as u8)) as usize];
-                                if bit && *curr {
+                                if bit && (*curr)[0] {
                                     self.v[0xF] = 1;
                                 }
-                                *curr ^= bit;
+                                (*curr)[0] ^= bit;
                             }
                         }
                     }

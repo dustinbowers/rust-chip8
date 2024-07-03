@@ -16,6 +16,7 @@ mod chip8;
 mod display;
 use chip8::Chip8;
 use chip8::{DISPLAY_COLS, DISPLAY_ROWS};
+use crate::chip8::DISPLAY_LAYERS;
 
 const WINDOW_HEIGHT: i32 = 256;
 const WINDOW_WIDTH: i32 = 512;
@@ -52,7 +53,7 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
     // include_bytes!("../roms/tests/8-scrolling.ch8").to_vec()
     // include_bytes!("../roms/programs/Keypad Test [Hap, 2006].ch8").to_vec()
 
-    include_bytes!("../roms/xo-chip/color-scroll-test-xochip.xo8").to_vec()
+    // include_bytes!("../roms/xo-chip/color-scroll-test-xochip.xo8").to_vec()
 
     // include_bytes!("../roms/schip/octogon.ch8").to_vec()
     // include_bytes!("../roms/schip/dodge.ch8").to_vec()
@@ -61,7 +62,7 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
     // include_bytes!("../roms/schip/DVN8.ch8").to_vec()
     // include_bytes!("../roms/schip/oob_test_7.ch8").to_vec()
 
-    // include_bytes!("../roms/games/Space Invaders [David Winter].ch8").to_vec()
+    include_bytes!("../roms/games/Space Invaders [David Winter].ch8").to_vec()
 }
 
 fn window_conf() -> Conf {
@@ -110,9 +111,17 @@ const KEY_MAP: &[(KeyCode, chip8::types::Key)] = &[
     (KeyCode::V, chip8::types::Key::F),
 ];
 
+
 #[macroquad::main(window_conf)]
 async fn main() {
-    const DRAW_METHOD: DrawMethod = DrawMethod::REAL;
+
+    let color_map = vec![
+        GREEN,
+        WHITE,
+        GRAY,
+    ];
+
+    const DRAW_METHOD: DrawMethod = DrawMethod::RAW; // DrawMethod::REAL;
     let mut ticks_per_frame: f64 = 700.0;
     let mut pause_emulation: bool = false;
     let mut debug_draw: bool = true;
@@ -149,11 +158,18 @@ async fn main() {
                 let reader = display.screen.lock().unwrap();
                 for (ri, r) in reader.iter().enumerate() {
                     for (ci, c) in r.iter().enumerate() {
-                        let b = match *c {
-                            true => 255,
-                            false => 0,
-                        };
-                        let color = color_u8!(b, b, b, 255);
+                        // let b = match (*c)[0] {
+                        //     true => 255,
+                        //     false => 0,
+                        // };
+                        // let color = color_u8!(b, b, b, 255);
+                        let mut color_ind : u8 = 0;
+                        for i in 0..DISPLAY_LAYERS {
+                            if(c[i]) {
+                                color_ind |= 1 << i;
+                            }
+                        }
+                        let color = color_map[color_ind as usize];
                         let x = ci as f32 * PIXEL_WIDTH;
                         let y = ri as f32 * PIXEL_HEIGHT;
                         draw_rectangle(x, y, PIXEL_WIDTH, PIXEL_HEIGHT, color);

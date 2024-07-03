@@ -20,7 +20,7 @@ impl Display {
         for (ci, r) in reader.iter().enumerate() {
             for (ri, cell) in r.iter().enumerate() {
                 let mut cur_val: i16 = self.pixels[ci][ri] as i16;
-                match *cell {
+                match (*cell)[0] {
                     true => cur_val += 255,
                     false => {
                         let mut new_val = cur_val as f32;
