@@ -54,8 +54,8 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
     // include_bytes!("../roms/programs/Keypad Test [Hap, 2006].ch8").to_vec()
 
     // include_bytes!("../roms/xo-chip/color-scroll-test-xochip.xo8").to_vec()
-    include_bytes!("../roms/xo-chip/anEveningToDieFor.xo8").to_vec()
-    // include_bytes!("../roms/xo-chip/t8nks.xo8").to_vec()
+    // include_bytes!("../roms/xo-chip/anEveningToDieFor.xo8").to_vec()
+    include_bytes!("../roms/xo-chip/t8nks.xo8").to_vec()
     // include_bytes!("../roms/xo-chip/chip8e-test.c8e").to_vec()
     // include_bytes!("../roms/xo-chip/superneatboy.ch8").to_vec()
     // include_bytes!("../roms/xo-chip/expedition.ch8").to_vec()
