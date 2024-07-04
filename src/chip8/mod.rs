@@ -1,7 +1,7 @@
 use macroquad::rand::rand;
 use quirks::Mode::*;
 use quirks::Quirks;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 
 #[macro_use]
 mod util;
@@ -29,8 +29,8 @@ pub struct Chip8 {
     super_chip_enabled: bool,
     hires_mode: bool,
     halt_input_register: u8,
-    halt_for_input: bool,
-    wait_for_vblank: bool,
+    halted_for_input: bool,
+    waiting_for_vblank: bool,
     quirks: Quirks,
     audio_pitch_vx: u8,
     audio_pattern_buffer: Vec<u8>,
@@ -60,8 +60,8 @@ impl Chip8 {
             super_chip_enabled: true,
             hires_mode: false,
             halt_input_register: 0,
-            halt_for_input: false,
-            wait_for_vblank: false,
+            halted_for_input: false,
+            waiting_for_vblank: false,
             quirks: Quirks::new(XoChip),
             audio_pitch_vx: 0,
             audio_pattern_buffer: vec![0u8; 16],
@@ -128,7 +128,7 @@ impl Chip8 {
     }
 
     pub fn v_blank(&mut self) {
-        self.wait_for_vblank = false;
+        self.waiting_for_vblank = false;
     }
 
     pub fn get_state(&self) -> String {
@@ -169,7 +169,7 @@ impl Chip8 {
             .join(" ");
         s = format!("{}\nKeys: [{}]", s, keyboard);
 
-        s = format!("{}\nhalt_for_input: {:?}", s, self.halt_for_input);
+        s = format!("{}\nhalt_for_input: {:?}", s, self.halted_for_input);
         s = format!("{}\nhires: {:?}", s, self.hires_mode);
         s = format!(
             "{}\nbit_plane_select: 0b{:04b} ({:?})",
@@ -182,9 +182,9 @@ impl Chip8 {
     pub fn set_key_state(&mut self, key: types::Key, is_pressed: bool) {
         let cur_state = &mut self.keyboard[key as usize];
 
-        if self.halt_for_input == true && *cur_state == true && is_pressed == false {
+        if self.halted_for_input == true && *cur_state == true && is_pressed == false {
             self.v[self.halt_input_register as usize] = key as u8;
-            self.halt_for_input = false;
+            self.halted_for_input = false;
         }
         *cur_state = is_pressed;
     }
@@ -208,11 +208,11 @@ impl Chip8 {
     }
 
     pub fn step(&mut self) -> Result<i32, ()> {
-        if self.halt_for_input {
-            return Ok(0);
+        if self.halted_for_input {
+            return Ok(1);
         }
-        if self.wait_for_vblank {
-            return Ok(0);
+        if self.waiting_for_vblank {
+            return Ok(1);
         }
         let opcode = self.fetch_opcode();
         self.pc += 2;
@@ -524,7 +524,7 @@ impl Chip8 {
                 }
 
                 if self.quirks.display_wait {
-                    self.wait_for_vblank = true;
+                    self.waiting_for_vblank = true;
                 }
             }
             0xE000 => {
@@ -580,7 +580,7 @@ impl Chip8 {
                                 // (Fx0A) - LD Vx, K - Halt for input, then store it in Vx
                                 let x = get_x!(opcode);
                                 self.halt_input_register = x as u8;
-                                self.halt_for_input = true;
+                                self.halted_for_input = true;
                             }
                             0x15 => {
                                 // (Fx15) - LD DT, Vx
