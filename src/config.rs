@@ -1,48 +1,35 @@
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::wasm_bindgen;
+use serde::{Deserialize, Serialize};
 
-#[cfg(target_arch = "wasm32")]
-#[wasm_bindgen]
+#[derive(Serialize, Deserialize)]
 pub struct Config {
-    ticks_per_frame: u32
+    pub pause_emulation: bool,
+    pub debug_draw: bool,
+    pub core_mode: String,
+    pub ticks_per_frame: u32,
+    pub color_map: Vec<u32>,
 }
 
-#[cfg(target_arch = "wasm32")]
-#[wasm_bindgen]
+fn rgb_to_int(r: f32, g: f32, b: f32) -> u32 {
+    let r = (r * 255.0) as u32;
+    let g = (g * 255.0) as u32;
+    let b = (b * 255.0) as u32;
+    (r << 16) | (g << 8) | (b << 0)
+}
+
 impl Config {
-    #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
         Self {
-            ticks_per_frame: 500
+            pause_emulation: false,
+            debug_draw: true,
+            core_mode: "xochip".to_string(),
+            ticks_per_frame: 500,
+            color_map: vec![
+                rgb_to_int(0.0, 0.0, 0.0),
+                rgb_to_int(0.78, 0.78, 0.78),
+                rgb_to_int(0.51, 0.51, 0.51),
+                rgb_to_int(0.32, 0.32, 0.32),
+                rgb_to_int(0.0, 1.0, 0.0),
+            ],
         }
-    }
-
-    #[wasm_bindgen(method, getter)]
-    pub fn ticks_per_frame(&self) -> u32 {
-        self.ticks_per_frame
-    }
-
-    #[wasm_bindgen(method, setter)]
-    pub fn set_ticks_per_frame(&mut self, ticks_per_frame: u32) {
-        self.ticks_per_frame = ticks_per_frame;
-    }
-}
-#[cfg(not(target_arch = "wasm32"))]
-pub struct Config {
-    ticks_per_frame: u32
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-impl Config {
-    pub fn new() -> Self {
-        Self { ticks_per_frame: 500 }
-    }
-
-    pub fn ticks_per_frame(&self) -> u32 {
-        self.ticks_per_frame
-    }
-
-    pub fn set_ticks_per_frame(&mut self, ticks_per_frame: u32) {
-        self.ticks_per_frame = ticks_per_frame;
     }
 }

@@ -79,6 +79,29 @@ impl Chip8 {
         self.quirks = quirks;
     }
 
+    pub fn set_core_mode(&mut self, mode: String) {
+        let mode = mode.to_lowercase();
+        // panic!("set core mode: {} ", mode.as_str());
+        match mode.as_str() {
+            "chip8modern" | "chip8" => {
+                self.quirks = Quirks::new(Chip8Modern)
+            },
+            "superchipmodern" | "superchip" => {
+                self.quirks = Quirks::new(SuperChipModern)
+            },
+            "superchiplegacy" => {
+                self.quirks = Quirks::new(SuperChipLegacy)
+            },
+            "xochip" => {
+                self.quirks = Quirks::new(XoChip)
+            },
+            _ => {
+                // TODO: handle this more gracefully
+                panic!("Unknown core mode: {}", mode.as_str());
+            }
+        };
+    }
+
     fn load_font(&mut self) {
         for (i, v) in types::FONT_SET.iter().enumerate() {
             self.memory[i + types::FONT_OFFSET] = *v;
