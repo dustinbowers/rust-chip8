@@ -2,21 +2,25 @@ use macroquad::audio;
 use macroquad::prelude::*;
 
 #[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::*;
+use wasm_bindgen::prelude::wasm_bindgen;
 #[cfg(not(target_arch = "wasm32"))]
 use {
     std::io::Read,
     std::{fs, io},
+    display::Display
 };
 
 #[cfg(feature = "audio")]
 use macroquad::audio::{play_sound_once, Sound};
 
-mod chip8;
+mod core;
 mod display;
-use chip8::Chip8;
-use chip8::{DISPLAY_COLS, DISPLAY_ROWS};
-use crate::chip8::DISPLAY_LAYERS;
+mod config;
+
+use core::Chip8;
+use core::{DISPLAY_COLS, DISPLAY_ROWS};
+use core::DISPLAY_LAYERS;
+use crate::config::Config;
 
 const WINDOW_HEIGHT: i32 = 256;
 const WINDOW_WIDTH: i32 = 512;
@@ -28,6 +32,8 @@ const PIXEL_HEIGHT: f32 = WINDOW_HEIGHT as f32 / DISPLAY_ROWS as f32;
 extern "C" {
     #[wasm_bindgen(js_namespace = window)]
     fn get_byte_array() -> js_sys::Uint8Array;
+    #[wasm_bindgen(js_namespace = window)]
+    fn get_config() -> Config;
 }
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
@@ -44,7 +50,7 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
 pub fn fetch_rom_bytes() -> Vec<u8> {
     // Test CPU
     // include_bytes!("../roms/programs/BC_test.ch8").to_vec()
-    // include_bytes!("../roms/tests/1-chip8-logo.ch8").to_vec()
+    // include_bytes!("../roms/tests/1-core-logo.ch8").to_vec()
     // include_bytes!("../roms/tests/3-corax+.ch8").to_vec()
     // include_bytes!("../roms/tests/4-flags.ch8").to_vec()
     // include_bytes!("../roms/tests/5-quirks.ch8").to_vec()
@@ -74,6 +80,16 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
     // include_bytes!("../roms/games/Space Invaders [David Winter].ch8").to_vec()
 }
 
+#[cfg(target_arch = "wasm32")]
+pub fn fetch_config() -> Config {
+    get_config()
+}
+#[cfg(not(target_arch = "wasm32"))]
+pub fn fetch_config() -> Config {
+    Config::new()
+}
+
+
 fn window_conf() -> Conf {
     Conf {
         window_title: "Chip 8".to_owned(),
@@ -101,25 +117,31 @@ enum DrawMethod {
     REAL,
 }
 
-const KEY_MAP: &[(KeyCode, chip8::types::Key)] = &[
-    (KeyCode::Key1, chip8::types::Key::Key1),
-    (KeyCode::Key2, chip8::types::Key::Key2),
-    (KeyCode::Key3, chip8::types::Key::Key3),
-    (KeyCode::Key4, chip8::types::Key::C),
-    (KeyCode::Q, chip8::types::Key::Key4),
-    (KeyCode::W, chip8::types::Key::Key5),
-    (KeyCode::E, chip8::types::Key::Key6),
-    (KeyCode::R, chip8::types::Key::D),
-    (KeyCode::A, chip8::types::Key::Key7),
-    (KeyCode::S, chip8::types::Key::Key8),
-    (KeyCode::D, chip8::types::Key::Key9),
-    (KeyCode::F, chip8::types::Key::E),
-    (KeyCode::Z, chip8::types::Key::A),
-    (KeyCode::X, chip8::types::Key::Key0),
-    (KeyCode::C, chip8::types::Key::B),
-    (KeyCode::V, chip8::types::Key::F),
+const KEY_MAP: &[(KeyCode, core::types::Key)] = &[
+    (KeyCode::Key1, core::types::Key::Key1),
+    (KeyCode::Key2, core::types::Key::Key2),
+    (KeyCode::Key3, core::types::Key::Key3),
+    (KeyCode::Key4, core::types::Key::C),
+    (KeyCode::Q, core::types::Key::Key4),
+    (KeyCode::W, core::types::Key::Key5),
+    (KeyCode::E, core::types::Key::Key6),
+    (KeyCode::R, core::types::Key::D),
+    (KeyCode::A, core::types::Key::Key7),
+    (KeyCode::S, core::types::Key::Key8),
+    (KeyCode::D, core::types::Key::Key9),
+    (KeyCode::F, core::types::Key::E),
+    (KeyCode::Z, core::types::Key::A),
+    (KeyCode::X, core::types::Key::Key0),
+    (KeyCode::C, core::types::Key::B),
+    (KeyCode::V, core::types::Key::F),
 ];
 
+// static EMULATOR: Lazy<Mutex<Chip8>> = Lazy::new(|| Mutex::new(Chip8::new()));
+// static CONFIG: Lazy<Mutex<config::Config>> = Lazy::new(|| Mutex::new(config::Config::new()));
+
+// macro_rules! chip_lock {
+//     () => { EMULATOR.lock().unwrap() };
+// }
 
 #[macroquad::main(window_conf)]
 async fn main() {
@@ -133,9 +155,11 @@ async fn main() {
     ];
 
     const DRAW_METHOD: DrawMethod = DrawMethod::RAW; // DrawMethod::REAL;
-    let mut ticks_per_frame: f64 = 500.0;
+    // let mut ticks_per_frame: f64 = 500.0;
     let mut pause_emulation: bool = false;
     let mut debug_draw: bool = true;
+    // let config: Config = Config::new();
+    let config = fetch_config();
 
     let rom = fetch_rom_bytes();
 
@@ -152,6 +176,7 @@ async fn main() {
     }
 
     let mut chip = Chip8::new();
+    // let mut chip_lock = EMULATOR.lock().unwrap();
     let loaded = chip.load_rom(rom, 0x200);
     match loaded {
         Ok(b) => { println!("Loaded {:?} rom bytes", b); }
@@ -160,8 +185,9 @@ async fn main() {
 
     let mut display = display::Display::new(chip.get_screen(), DISPLAY_ROWS, DISPLAY_COLS);
 
+
     // Time per step at 700 Hz
-    let mut last_step_time = get_time();
+    // let mut last_step_time = get_time();
     let mut last_frame_time = get_time();
     loop {
         chip.v_blank();
@@ -261,7 +287,7 @@ async fn main() {
                 RED,
             );
             draw_text(
-                &format!("TPF: {:?}", ticks_per_frame as u32),
+                &format!("TPF: {:?}", config.ticks_per_frame() as u32),
                 WINDOW_WIDTH as f32 - 80.0,
                 24.0,
                 20.0,
@@ -283,31 +309,31 @@ async fn main() {
 
         // Switch modes
         if is_key_pressed(KeyCode::Key7) {
-            chip.set_quirks_mode(chip8::quirks::Quirks::new(chip8::quirks::Mode::Chip8Modern));
+            chip.set_quirks_mode(core::quirks::Quirks::new(core::quirks::Mode::Chip8Modern));
         }
         if is_key_pressed(KeyCode::Key8) {
-            chip.set_quirks_mode(chip8::quirks::Quirks::new(
-                chip8::quirks::Mode::SuperChipModern,
+            chip.set_quirks_mode(core::quirks::Quirks::new(
+                core::quirks::Mode::SuperChipModern,
             ));
         }
         if is_key_pressed(KeyCode::Key9) {
-            chip.set_quirks_mode(chip8::quirks::Quirks::new(
-                chip8::quirks::Mode::SuperChipLegacy,
+            chip.set_quirks_mode(core::quirks::Quirks::new(
+                core::quirks::Mode::SuperChipLegacy,
             ));
         }
         if is_key_pressed(KeyCode::Key0) {
-            chip.set_quirks_mode(chip8::quirks::Quirks::new(chip8::quirks::Mode::XoChip));
+            chip.set_quirks_mode(core::quirks::Quirks::new(core::quirks::Mode::XoChip));
         }
 
 
-        if is_key_pressed(KeyCode::Minus) {
-            ticks_per_frame -= 100.0;
-            ticks_per_frame = ticks_per_frame.clamp(100.0, 20000.0);
-        }
-        if is_key_pressed(KeyCode::Equal) {
-            ticks_per_frame += 100.0;
-            ticks_per_frame = ticks_per_frame.clamp(100.0, 20000.0);
-        }
+        // if is_key_pressed(KeyCode::Minus) {
+        //     ticks_per_frame -= 100.0;
+        //     ticks_per_frame = ticks_per_frame.clamp(100.0, 20000.0);
+        // }
+        // if is_key_pressed(KeyCode::Equal) {
+        //     ticks_per_frame += 100.0;
+        //     ticks_per_frame = ticks_per_frame.clamp(100.0, 20000.0);
+        // }
 
         // Toggle debug output
         if is_key_pressed(KeyCode::I) {
@@ -319,14 +345,14 @@ async fn main() {
                 // We have to reinitialize the last step time so that the CPU doesn't
                 // try to 'catch up' for all the cycles that should have happened
                 // during the paused period
-                last_step_time = get_time();
+                // last_step_time = get_time();
             }
             pause_emulation = !pause_emulation;
         }
 
         if pause_emulation == false {
             // Run processor
-            for t in 0..ticks_per_frame as u32 {
+            for _ in 0..config.ticks_per_frame() {
                 // TODO: Handle errors gracefully...
                 _ = chip.step();
             }

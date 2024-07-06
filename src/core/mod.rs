@@ -1,7 +1,7 @@
 use macroquad::rand::rand;
 use quirks::Mode::*;
 use quirks::Quirks;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 
 #[macro_use]
 mod util;
