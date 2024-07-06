@@ -32,13 +32,17 @@
 <canvas id="glcanvas" tabindex='1' hidden></canvas>
 <script src="https://not-fl3.github.io/miniquad-samples/mq_js_bundle.js"></script>
 <script type="module">
-    import init, { set_wasm, Config } from "./chip8.js";
+    import init, { set_wasm, send_new_config_to_js } from "./chip8.js";
 
     let rom_url = "/Space%20Invaders%20%5BDavid%20Winter%5D.ch8";
     let ROM_DATA = "";
+    let CONFIG = {};
 
+    window.set_config = function(new_conf) {
+        CONFIG = new_conf;
+    }
     window.get_config = function() {
-        return emu_config;
+        return CONFIG;
     }
     window.get_byte_array = function () {
         return ROM_DATA;
@@ -67,13 +71,17 @@
             register_plugin: (a) => {
                 a.wbg = wbg;
             },
-            on_init: () => set_wasm(wasm_exports),
+            on_init: () => {
+                set_wasm(wasm_exports)
+                CONFIG  = send_new_config_to_js();
+                CONFIG.ticks_per_frame = 20;
+                CONFIG.core_mode = "superchip";
+                // CONFIG.core_mode = "xochip";
+            },
             version: "0.0.1",
             name: "wbg",
         });
 
-        window.emu_config = new Config;
-        window.emu_config.ticks_per_frame = 250;
         play_rom(rom_url);
     }
     window.run = function() {
