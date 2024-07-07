@@ -293,8 +293,8 @@ impl Chip8 {
                     }
                     0x00EE => {
                         // RET
-                        self.pc = self.stack[self.sp as usize];
                         self.sp -= 1;
+                        self.pc = self.stack[self.sp as usize];
                     }
                     0x00FB => {
                         // 00FB*    Scroll display 4 pixels right
@@ -351,8 +351,8 @@ impl Chip8 {
             }
             0x2000 => {
                 // (2nnn) CALL addr
-                self.sp += 1;
                 self.stack[self.sp as usize] = self.pc;
+                self.sp += 1;
                 self.pc = get_nnn!(opcode);
             }
             0x3000 => {
