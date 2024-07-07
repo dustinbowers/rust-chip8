@@ -32,12 +32,27 @@
 <canvas id="glcanvas" tabindex='1' hidden></canvas>
 <script src="https://not-fl3.github.io/miniquad-samples/mq_js_bundle.js"></script>
 <script type="module">
-    import init, { set_wasm } from "./chip8.js";
+    import init, { set_wasm, send_new_config_to_js } from "./chip8.js";
 
-    let rom_url = "/Space%20Invaders%20%5BDavid%20Winter%5D.ch8";
+    // let rom_url = "/Space%20Invaders%20%5BDavid%20Winter%5D.ch8";
+    let rom_url = "/t8nks.xo8";
     let ROM_DATA = "";
+    let CONFIG = {};
+
+    window.set_config = function(new_conf) {
+        CONFIG = new_conf;
+    }
+    window.get_config = function() {
+        return CONFIG;
+    }
     window.get_byte_array = function () {
         return ROM_DATA;
+    }
+    window.hex_to_int = function(hex) {
+        if (hex.startsWith('#')) {
+            hex = hex.slice(1);
+        }
+        return parseInt(hex, 16);
     }
     function reset_chip8() {
         load("chip8_bg.wasm");
@@ -58,14 +73,29 @@
     }
     async function impl_run() {
         let wbg = await init();
+
         miniquad_add_plugin({
             register_plugin: (a) => {
                 a.wbg = wbg;
             },
-            on_init: () => set_wasm(wasm_exports),
+            on_init: () => {
+                set_wasm(wasm_exports)
+                CONFIG  = send_new_config_to_js();
+                CONFIG.ticks_per_frame = 1500;
+                CONFIG.color_map = [
+                    hex_to_int("#111111"),
+                    hex_to_int("#00ff00"),
+                    hex_to_int("#FF0000"),
+                    hex_to_int("#112244"),
+                ]
+                console.log(CONFIG);
+                // CONFIG.core_mode = "superchip";
+                CONFIG.core_mode = "xochip";
+            },
             version: "0.0.1",
             name: "wbg",
         });
+
         play_rom(rom_url);
     }
     window.run = function() {

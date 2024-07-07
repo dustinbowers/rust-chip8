@@ -1,13 +1,13 @@
-use crate::chip8;
+use crate::core;
 use std::sync::{Arc, Mutex};
 
 pub struct Display {
-    pub screen: Arc<Mutex<chip8::types::Screen>>,
+    pub screen: Arc<Mutex<core::types::Screen>>,
     pub pixels: Vec<Vec<u8>>,
 }
 
 impl Display {
-    pub fn new(screen: Arc<Mutex<chip8::types::Screen>>, rows: usize, cols: usize) -> Display {
+    pub fn new(screen: Arc<Mutex<core::types::Screen>>, rows: usize, cols: usize) -> Display {
         Display {
             screen,
             pixels: vec![vec![0u8; cols]; rows],

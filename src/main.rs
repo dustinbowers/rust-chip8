@@ -1,8 +1,6 @@
 use macroquad::audio;
 use macroquad::prelude::*;
 
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::*;
 #[cfg(not(target_arch = "wasm32"))]
 use {
     std::io::Read,
@@ -11,12 +9,17 @@ use {
 
 #[cfg(feature = "audio")]
 use macroquad::audio::{play_sound_once, Sound};
+use wasm_bindgen::prelude::wasm_bindgen;
+use wasm_bindgen::JsValue;
 
-mod chip8;
+mod config;
+mod core;
 mod display;
-use chip8::Chip8;
-use chip8::{DISPLAY_COLS, DISPLAY_ROWS};
-use crate::chip8::DISPLAY_LAYERS;
+
+use crate::config::Config;
+use core::Chip8;
+use core::DISPLAY_LAYERS;
+use core::{DISPLAY_COLS, DISPLAY_ROWS};
 
 const WINDOW_HEIGHT: i32 = 256;
 const WINDOW_WIDTH: i32 = 512;
@@ -28,12 +31,34 @@ const PIXEL_HEIGHT: f32 = WINDOW_HEIGHT as f32 / DISPLAY_ROWS as f32;
 extern "C" {
     #[wasm_bindgen(js_namespace = window)]
     fn get_byte_array() -> js_sys::Uint8Array;
+
+    #[wasm_bindgen(js_namespace = window)]
+    fn get_config() -> JsValue;
+
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(s: &str);
 }
+#[cfg(target_arch = "wasm32")]
+macro_rules! console_log {
+    ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
+}
+
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn fetch_byte_array_from_js() -> Vec<u8> {
     let js_array = crate::get_byte_array();
     js_array.to_vec()
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn fetch_config() -> Config {
+    let val = get_config();
+    let new_conf: Config = serde_wasm_bindgen::from_value(val).unwrap();
+    new_conf
+}
+#[cfg(not(target_arch = "wasm32"))]
+fn fetch_config() -> Config {
+    Config::new()
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -44,7 +69,7 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
 pub fn fetch_rom_bytes() -> Vec<u8> {
     // Test CPU
     // include_bytes!("../roms/programs/BC_test.ch8").to_vec()
-    // include_bytes!("../roms/tests/1-chip8-logo.ch8").to_vec()
+    // include_bytes!("../roms/tests/1-core-logo.ch8").to_vec()
     // include_bytes!("../roms/tests/3-corax+.ch8").to_vec()
     // include_bytes!("../roms/tests/4-flags.ch8").to_vec()
     // include_bytes!("../roms/tests/5-quirks.ch8").to_vec()
@@ -101,43 +126,48 @@ enum DrawMethod {
     REAL,
 }
 
-const KEY_MAP: &[(KeyCode, chip8::types::Key)] = &[
-    (KeyCode::Key1, chip8::types::Key::Key1),
-    (KeyCode::Key2, chip8::types::Key::Key2),
-    (KeyCode::Key3, chip8::types::Key::Key3),
-    (KeyCode::Key4, chip8::types::Key::C),
-    (KeyCode::Q, chip8::types::Key::Key4),
-    (KeyCode::W, chip8::types::Key::Key5),
-    (KeyCode::E, chip8::types::Key::Key6),
-    (KeyCode::R, chip8::types::Key::D),
-    (KeyCode::A, chip8::types::Key::Key7),
-    (KeyCode::S, chip8::types::Key::Key8),
-    (KeyCode::D, chip8::types::Key::Key9),
-    (KeyCode::F, chip8::types::Key::E),
-    (KeyCode::Z, chip8::types::Key::A),
-    (KeyCode::X, chip8::types::Key::Key0),
-    (KeyCode::C, chip8::types::Key::B),
-    (KeyCode::V, chip8::types::Key::F),
+const KEY_MAP: &[(KeyCode, core::types::Key)] = &[
+    (KeyCode::Key1, core::types::Key::Key1),
+    (KeyCode::Key2, core::types::Key::Key2),
+    (KeyCode::Key3, core::types::Key::Key3),
+    (KeyCode::Key4, core::types::Key::C),
+    (KeyCode::Q, core::types::Key::Key4),
+    (KeyCode::W, core::types::Key::Key5),
+    (KeyCode::E, core::types::Key::Key6),
+    (KeyCode::R, core::types::Key::D),
+    (KeyCode::A, core::types::Key::Key7),
+    (KeyCode::S, core::types::Key::Key8),
+    (KeyCode::D, core::types::Key::Key9),
+    (KeyCode::F, core::types::Key::E),
+    (KeyCode::Z, core::types::Key::A),
+    (KeyCode::X, core::types::Key::Key0),
+    (KeyCode::C, core::types::Key::B),
+    (KeyCode::V, core::types::Key::F),
 ];
 
+#[wasm_bindgen]
+pub fn send_new_config_to_js() -> JsValue {
+    let new_conf = Config::new();
+    serde_wasm_bindgen::to_value(&new_conf).unwrap()
+}
 
 #[macroquad::main(window_conf)]
 async fn main() {
-
-    let color_map = vec![
-        BLACK,
-        LIGHTGRAY,
-        GRAY,
-        DARKGRAY,
-        RED,
-    ];
-
     const DRAW_METHOD: DrawMethod = DrawMethod::RAW; // DrawMethod::REAL;
-    let mut ticks_per_frame: f64 = 500.0;
-    let mut pause_emulation: bool = false;
-    let mut debug_draw: bool = true;
 
+    let mut config = fetch_config();
     let rom = fetch_rom_bytes();
+
+    let color_map: Vec<Color> = config
+        .color_map
+        .iter()
+        .map(|c| {
+            let r = ((c >> 16) & 0xFFu32) as f32 / 255.0;
+            let g = ((c >> 8) & 0xFFu32) as f32 / 255.0;
+            let b = ((c >> 0) & 0xFFu32) as f32 / 255.0;
+            Color::new(r, g, b, 1.0)
+        })
+        .collect();
 
     let boop: Sound;
     #[cfg(feature = "audio")]
@@ -152,40 +182,34 @@ async fn main() {
     }
 
     let mut chip = Chip8::new();
+    chip.set_core_mode(config.core_mode);
+
     let loaded = chip.load_rom(rom, 0x200);
     match loaded {
-        Ok(b) => { println!("Loaded {:?} rom bytes", b); }
-        Err(err) => { panic!("{}", err); }
+        Ok(b) => {
+            println!("Loaded {:?} ROM bytes", b);
+        }
+        Err(err) => {
+            panic!("Error loading ROM bytes: {}", err);
+        }
     }
 
     let mut display = display::Display::new(chip.get_screen(), DISPLAY_ROWS, DISPLAY_COLS);
 
-    // Time per step at 700 Hz
-    let mut last_step_time = get_time();
     let mut last_frame_time = get_time();
     loop {
         chip.v_blank();
-        clear_background(GRAY);
-        // TODO: Fix the way cycles are executed per frame, maybe? /Technically/ They should be
-        //       evenly distributed between frame draws, rather than front-loaded all at once...
-        // let step_duration = 1.0 / ticks_per_frame;
         match DRAW_METHOD {
             DrawMethod::RAW => {
                 let reader = display.screen.lock().unwrap();
                 for (ri, r) in reader.iter().enumerate() {
                     for (ci, c) in r.iter().enumerate() {
-                        // let b = match (*c)[0] {
-                        //     true => 255,
-                        //     false => 0,
-                        // };
-                        // let color = color_u8!(b, b, b, 255);
-                        let mut color_ind : u8 = 0;
+                        let mut color_ind: u8 = 0;
                         for i in 0..DISPLAY_LAYERS {
                             if c[i] {
                                 color_ind |= 1 << i;
                             }
                         }
-                        // println!("color_ind = {} (0b{:04b})", color_ind, color_ind);
                         let color = color_map[color_ind as usize];
                         let x = ci as f32 * PIXEL_WIDTH;
                         let y = ri as f32 * PIXEL_HEIGHT;
@@ -206,7 +230,7 @@ async fn main() {
             }
         }
 
-        if pause_emulation {
+        if config.pause_emulation {
             let pause_size = 48.0;
             let pause_str = "[PAUSED]";
             let x = WINDOW_WIDTH as f32 / 2.0 - (pause_size / 2.0 * pause_str.len() as f32 / 2.0);
@@ -222,7 +246,7 @@ async fn main() {
         }
 
         // Draw debug if enabled
-        if debug_draw {
+        if config.debug_draw {
             let debug_x: f32 = 12.0;
             let debug_y: f32 = 0.0;
             let font_size: f32 = 20.0;
@@ -261,7 +285,7 @@ async fn main() {
                 RED,
             );
             draw_text(
-                &format!("TPF: {:?}", ticks_per_frame as u32),
+                &format!("TPF: {:?}", config.ticks_per_frame as u32),
                 WINDOW_WIDTH as f32 - 80.0,
                 24.0,
                 20.0,
@@ -283,50 +307,49 @@ async fn main() {
 
         // Switch modes
         if is_key_pressed(KeyCode::Key7) {
-            chip.set_quirks_mode(chip8::quirks::Quirks::new(chip8::quirks::Mode::Chip8Modern));
+            chip.set_quirks_mode(core::quirks::Quirks::new(core::quirks::Mode::Chip8Modern));
         }
         if is_key_pressed(KeyCode::Key8) {
-            chip.set_quirks_mode(chip8::quirks::Quirks::new(
-                chip8::quirks::Mode::SuperChipModern,
+            chip.set_quirks_mode(core::quirks::Quirks::new(
+                core::quirks::Mode::SuperChipModern,
             ));
         }
         if is_key_pressed(KeyCode::Key9) {
-            chip.set_quirks_mode(chip8::quirks::Quirks::new(
-                chip8::quirks::Mode::SuperChipLegacy,
+            chip.set_quirks_mode(core::quirks::Quirks::new(
+                core::quirks::Mode::SuperChipLegacy,
             ));
         }
         if is_key_pressed(KeyCode::Key0) {
-            chip.set_quirks_mode(chip8::quirks::Quirks::new(chip8::quirks::Mode::XoChip));
+            chip.set_quirks_mode(core::quirks::Quirks::new(core::quirks::Mode::XoChip));
         }
-
 
         if is_key_pressed(KeyCode::Minus) {
-            ticks_per_frame -= 100.0;
-            ticks_per_frame = ticks_per_frame.clamp(100.0, 20000.0);
+            config.ticks_per_frame -= 100;
+            config.ticks_per_frame = config.ticks_per_frame.clamp(100, 20000);
         }
         if is_key_pressed(KeyCode::Equal) {
-            ticks_per_frame += 100.0;
-            ticks_per_frame = ticks_per_frame.clamp(100.0, 20000.0);
+            config.ticks_per_frame += 100;
+            config.ticks_per_frame = config.ticks_per_frame.clamp(100, 20000);
         }
 
         // Toggle debug output
         if is_key_pressed(KeyCode::I) {
-            debug_draw = !debug_draw;
+            config.debug_draw = !config.debug_draw;
         }
         // Pause / Unpause updates
         if is_key_pressed(KeyCode::P) {
-            if pause_emulation {
+            if config.pause_emulation {
                 // We have to reinitialize the last step time so that the CPU doesn't
                 // try to 'catch up' for all the cycles that should have happened
                 // during the paused period
-                last_step_time = get_time();
+                // last_step_time = get_time();
             }
-            pause_emulation = !pause_emulation;
+            config.pause_emulation = !config.pause_emulation;
         }
 
-        if pause_emulation == false {
+        if config.pause_emulation == false {
             // Run processor
-            for t in 0..ticks_per_frame as u32 {
+            for _ in 0..config.ticks_per_frame {
                 // TODO: Handle errors gracefully...
                 _ = chip.step();
             }
