@@ -327,11 +327,22 @@ impl Chip8 {
                         // 00FE*    Disable extended screen mode
                         ensure_super_chip!(self.super_chip_enabled);
                         self.hires_mode = false;
+                        for layer in 0..DISPLAY_LAYERS {
+                            if (self.bit_plane_selector >> layer) & 0b1 == 1 {
+                                self.clear_layer(layer);
+                            }
+                        }
+
                     }
                     0x00FF => {
                         // 00FF*    Enable extended screen mode for full-screen graphics
                         ensure_super_chip!(self.super_chip_enabled);
                         self.hires_mode = true;
+                        for layer in 0..DISPLAY_LAYERS {
+                            if (self.bit_plane_selector >> layer) & 0b1 == 1 {
+                                self.clear_layer(layer);
+                            }
+                        }
                     }
                     _ => {
                         invalid_opcode!(opcode)
@@ -781,11 +792,10 @@ impl Chip8 {
         }
     }
 
-    fn draw_sprite(&mut self, col: u8, row: u8, n: u8, page_num: usize, layer: usize) {
+    fn draw_sprite(&mut self, col: u8, row: u8, sprite_rows: u8, page_num: usize, layer: usize) {
         let mut screen_writer = self.screen.lock().unwrap();
         let sprite_offset = self.i as usize;
-        // self.v[0xF] = 0;
-        if n == 0 && self.hires_mode {
+        if sprite_rows == 0 && self.hires_mode {
             // draw a SuperChip 16x16 sprite
             let page_size = 2 * 16;
             for r in 0..16u16 {
@@ -816,8 +826,8 @@ impl Chip8 {
                 }
             }
         } else {
-            let page_size = n as usize;
-            for byte_ind in 0..n {
+            let page_size = sprite_rows as usize;
+            for byte_ind in 0..sprite_rows {
                 let sprite_offset = sprite_offset + (page_num * page_size) + byte_ind as usize;
                 let sprite_byte = self.memory[sprite_offset];
 
@@ -841,11 +851,11 @@ impl Chip8 {
                         }
 
                         let curr = &mut screen_writer[screen_y as usize % DISPLAY_ROWS]
-                            [screen_x as usize % DISPLAY_COLS];
-                        if bit && (*curr)[layer] {
+                            [screen_x as usize % DISPLAY_COLS][layer];
+                        if bit && (*curr) {
                             self.v[0xF] = 1;
                         }
-                        (*curr)[layer] ^= bit;
+                        *curr ^= bit;
                     } else {
                         let mut screen_x = col % (DISPLAY_COLS / 2) as u8;
                         let mut screen_y = row % (DISPLAY_ROWS / 2) as u8;

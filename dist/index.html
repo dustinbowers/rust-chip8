@@ -34,7 +34,8 @@
 <script type="module">
     import init, { set_wasm, send_new_config_to_js } from "./chip8.js";
 
-    let rom_url = "/Space%20Invaders%20%5BDavid%20Winter%5D.ch8";
+    // let rom_url = "/Space%20Invaders%20%5BDavid%20Winter%5D.ch8";
+    let rom_url = "/t8nks.xo8";
     let ROM_DATA = "";
     let CONFIG = {};
 
@@ -46,6 +47,12 @@
     }
     window.get_byte_array = function () {
         return ROM_DATA;
+    }
+    window.hex_to_int = function(hex) {
+        if (hex.startsWith('#')) {
+            hex = hex.slice(1);
+        }
+        return parseInt(hex, 16);
     }
     function reset_chip8() {
         load("chip8_bg.wasm");
@@ -74,9 +81,16 @@
             on_init: () => {
                 set_wasm(wasm_exports)
                 CONFIG  = send_new_config_to_js();
-                CONFIG.ticks_per_frame = 20;
-                CONFIG.core_mode = "superchip";
-                // CONFIG.core_mode = "xochip";
+                CONFIG.ticks_per_frame = 1500;
+                CONFIG.color_map = [
+                    hex_to_int("#111111"),
+                    hex_to_int("#00ff00"),
+                    hex_to_int("#FF0000"),
+                    hex_to_int("#112244"),
+                ]
+                console.log(CONFIG);
+                // CONFIG.core_mode = "superchip";
+                CONFIG.core_mode = "xochip";
             },
             version: "0.0.1",
             name: "wbg",

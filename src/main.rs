@@ -199,7 +199,6 @@ async fn main() {
     let mut last_frame_time = get_time();
     loop {
         chip.v_blank();
-        clear_background(GRAY);
         match DRAW_METHOD {
             DrawMethod::RAW => {
                 let reader = display.screen.lock().unwrap();
