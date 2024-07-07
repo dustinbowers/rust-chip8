@@ -328,20 +328,16 @@ impl Chip8 {
                         ensure_super_chip!(self.super_chip_enabled);
                         self.hires_mode = false;
                         for layer in 0..DISPLAY_LAYERS {
-                            if (self.bit_plane_selector >> layer) & 0b1 == 1 {
-                                self.clear_layer(layer);
-                            }
+                            self.clear_layer(layer);
                         }
 
                     }
                     0x00FF => {
-                        // 00FF*    Enable extended screen mode for full-screen graphics
+                        // 00FF*    Enable extended screen mode
                         ensure_super_chip!(self.super_chip_enabled);
                         self.hires_mode = true;
                         for layer in 0..DISPLAY_LAYERS {
-                            if (self.bit_plane_selector >> layer) & 0b1 == 1 {
-                                self.clear_layer(layer);
-                            }
+                            self.clear_layer(layer);
                         }
                     }
                     _ => {
