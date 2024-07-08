@@ -339,10 +339,6 @@ async fn main() {
         // Pause / Unpause updates
         if is_key_pressed(KeyCode::P) {
             if config.pause_emulation {
-                // We have to reinitialize the last step time so that the CPU doesn't
-                // try to 'catch up' for all the cycles that should have happened
-                // during the paused period
-                // last_step_time = get_time();
             }
             config.pause_emulation = !config.pause_emulation;
         }
