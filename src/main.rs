@@ -347,7 +347,10 @@ async fn main() {
             // Run processor
             for _ in 0..config.ticks_per_frame {
                 // TODO: Handle errors gracefully...
-                _ = chip.step();
+                if let Err(e) = chip.step() {
+                    println!("Error: {}", e);
+                }
+
             }
 
             display.update();

@@ -2,15 +2,18 @@ use macroquad::rand::rand;
 use quirks::Mode::*;
 use quirks::Quirks;
 use std::sync::{Arc, Mutex};
+use crate::core::error::*;
 
 #[macro_use]
 mod util;
 pub mod quirks;
 pub mod types;
+mod error;
 
 pub const DISPLAY_ROWS: usize = 64;
 pub const DISPLAY_COLS: usize = 128;
 pub const DISPLAY_LAYERS: usize = 2;
+
 
 pub struct Chip8 {
     screen: Arc<Mutex<types::Screen>>,
@@ -108,10 +111,15 @@ impl Chip8 {
         }
     }
 
-    pub fn load_rom(&mut self, bytes: Vec<u8>, start_offset: u16) -> Result<(), String> {
+    pub fn load_rom(&mut self, bytes: Vec<u8>, start_offset: u16) -> Result<(), CoreError> {
         let start_offset = start_offset as usize;
         if bytes.len() + start_offset >= 1 << 16 {
-            return Err("Invalid rom".to_string());
+            return Err(CoreError::new(
+                file!(),
+                CoreErrorType::InvalidRom(
+                    format!("Rom byte size {} + start_offset > 1<<16", bytes.len())
+                )
+            ));
         }
         for (i, v) in bytes.iter().enumerate() {
             self.memory[i + start_offset] = *v;
@@ -230,7 +238,7 @@ impl Chip8 {
         }
     }
 
-    pub fn step(&mut self) -> Result<i32, ()> {
+    pub fn step(&mut self) -> Result<i32, CoreError> {
         if self.halted_for_input {
             return Ok(1);
         }
@@ -341,7 +349,9 @@ impl Chip8 {
                         }
                     }
                     _ => {
-                        invalid_opcode!(opcode)
+                        return Err(CoreError::new(
+                            file!(),
+                            CoreErrorType::InvalidOpcode(opcode)));
                     }
                 }
             }
@@ -406,7 +416,9 @@ impl Chip8 {
                         }
                     }
                     _ => {
-                        invalid_opcode!(opcode);
+                        return Err(CoreError::new(
+                            file!(),
+                            CoreErrorType::InvalidOpcode(opcode)));
                     }
                 }
             }
@@ -505,7 +517,9 @@ impl Chip8 {
                         self.v[0xF] = (v_x >> 7) & 0x1;
                     }
                     _ => {
-                        invalid_opcode!(opcode)
+                        return Err(CoreError::new(
+                            file!(),
+                            CoreErrorType::InvalidOpcode(opcode)));
                     }
                 }
             }
@@ -518,7 +532,9 @@ impl Chip8 {
                         }
                     }
                     _ => {
-                        invalid_opcode!(opcode);
+                        return Err(CoreError::new(
+                            file!(),
+                            CoreErrorType::InvalidOpcode(opcode)));
                     }
                 }
             }
@@ -575,7 +591,9 @@ impl Chip8 {
                         }
                     }
                     _ => {
-                        invalid_opcode!(opcode);
+                        return Err(CoreError::new(
+                            file!(),
+                            CoreErrorType::InvalidOpcode(opcode)));
                     }
                 }
             }
@@ -673,7 +691,9 @@ impl Chip8 {
                                 ensure_super_chip!(self.super_chip_enabled);
                                 let x = get_x!(opcode);
                                 if x > 8 {
-                                    invalid_opcode!(opcode);
+                                    return Err(CoreError::new(
+                                        file!(),
+                                        CoreErrorType::InvalidOpcode(opcode)));
                                 }
                                 self.rpl[x] = self.v[x];
                             }
@@ -682,19 +702,25 @@ impl Chip8 {
                                 ensure_super_chip!(self.super_chip_enabled);
                                 let x = get_x!(opcode);
                                 if x > 8 {
-                                    invalid_opcode!(opcode);
+                                    return Err(CoreError::new(
+                                        file!(),
+                                        CoreErrorType::InvalidOpcode(opcode)));
                                 }
                                 self.v[x] = self.rpl[x];
                             }
                             _ => {
-                                invalid_opcode!(opcode);
+                                return Err(CoreError::new(
+                                    file!(),
+                                    CoreErrorType::InvalidOpcode(opcode)));
                             }
                         }
                     }
                 }
             }
             _ => {
-                invalid_opcode!(opcode);
+                return Err(CoreError::new(
+                    file!(),
+                    CoreErrorType::InvalidOpcode(opcode)));
             }
         }
         Ok(1)
