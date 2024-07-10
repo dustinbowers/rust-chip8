@@ -354,8 +354,7 @@ async fn main() {
             for _ in 0..config.ticks_per_frame {
                 if let Err(e) = chip.step() {
                     println!("Error: {}", e);
-                    show_error(&chip, e).await;
-                    // return
+                    show_error(e).await;
                 }
             }
 
@@ -376,17 +375,19 @@ async fn main() {
     }
 }
 
-async fn show_error(chip: &Chip8, err: core::error::CoreError) {
+async fn show_error(err: core::error::CoreError) {
     println!("show_error - Error: {:#?}", err);
-    let debug_x = 24.0;
-    let debug_y = 48.0;
-    let font_size = 20.0;
+    let debug_x = 30.0;
+    let debug_y = 70.0;
+    let font_size = 24.0;
     let err_box_color = Color::from_rgba(216, 80, 77, 255);
+    let err_box_color2 = Color::from_rgba(177, 60, 57, 255);
     let text_color = Color::from_rgba(255, 255, 255, 255);
 
     loop {
         draw_rectangle(16.0, 16.0, (WINDOW_WIDTH-32) as f32, (WINDOW_HEIGHT-32) as f32, err_box_color);
-        draw_text("ERROR", WINDOW_WIDTH as f32 / 2.0 - 36.0, 40.0, 32.0, text_color);
+        draw_rectangle(24.0, 24.0, (WINDOW_WIDTH-48) as f32, 42.0 , err_box_color2);
+        draw_text("ERROR", WINDOW_WIDTH as f32 / 2.0 - 36.0, 54.0, 32.0, text_color);
         let err_text = format!("Type: {}\nInfo: {}", err.error_type, err.info);
         err_text.split("\n").enumerate()
             .for_each(|(ind, line)| {

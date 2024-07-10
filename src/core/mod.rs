@@ -17,7 +17,7 @@ pub const DISPLAY_LAYERS: usize = 2;
 
 macro_rules! err_info {
     () => {
-        format!("TRACE: file: {}, line: {}", file!(), line!())
+        format!("{}, line: {}", file!(), line!())
     };
 }
 pub struct Chip8 {
