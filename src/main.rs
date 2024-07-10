@@ -399,11 +399,9 @@ async fn show_error(err: core::error::CoreError) {
                     text_color,
                 );
             });
-
         if is_key_pressed(KeyCode::Enter) {
             break;
         }
         next_frame().await;
     }
-
 }
