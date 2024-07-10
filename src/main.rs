@@ -1,4 +1,3 @@
-use std::error::Error;
 use macroquad::audio;
 use macroquad::prelude::*;
 
@@ -151,14 +150,6 @@ pub fn send_new_config_to_js() -> JsValue {
     let new_conf = Config::new();
     serde_wasm_bindgen::to_value(&new_conf).unwrap()
 }
-
-enum EmulatorState {
-    Load,
-    Run,
-    Error,
-    Exit,
-}
-
 
 #[macroquad::main(window_conf)]
 async fn main() {
