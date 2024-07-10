@@ -3,18 +3,21 @@ use std::fmt;
 #[derive(Debug)]
 pub enum CoreErrorType {
     InvalidOpcode(u16),
+    StackOverflow(u16),
+    InvalidMemoryPtr(usize),
+    InvalidMemoryAccess(usize),
     InvalidRom(String),
 }
 
 #[derive(Debug)]
 pub struct CoreError {
     pub error_type: CoreErrorType,
-    pub file: String,
+    pub info: String,
 }
 impl CoreError {
-    pub fn new(file: &str, error_type: CoreErrorType) -> Self {
+    pub fn new(info: String, error_type: CoreErrorType) -> Self {
         Self {
-            file: file.to_string(),
+            info,
             error_type,
         }
     }
@@ -22,7 +25,7 @@ impl CoreError {
 
 impl fmt::Display for CoreError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let out = format!("Error Type: {:#?}\nFile: {}", self.error_type, self.file);
+        let out = format!("Error Type: {:?}\nInfo: {}", self.error_type, self.info);
         write!(f, "{}", out)
     }
 }

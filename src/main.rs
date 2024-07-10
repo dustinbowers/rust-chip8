@@ -343,6 +343,11 @@ async fn main() {
             config.pause_emulation = !config.pause_emulation;
         }
 
+        // BLOW UP THE CORE
+        if is_key_pressed(KeyCode::B) {
+            chip.chaos();
+        }
+
         if config.pause_emulation == false {
             // Run processor
             for _ in 0..config.ticks_per_frame {

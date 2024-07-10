@@ -3,6 +3,8 @@ use quirks::Mode::*;
 use quirks::Quirks;
 use std::sync::{Arc, Mutex};
 use crate::core::error::*;
+use crate::core::error::CoreErrorType::{InvalidMemoryAccess, InvalidMemoryPtr, StackOverflow};
+use crate::core::quirks::Mode;
 
 #[macro_use]
 mod util;
@@ -14,7 +16,9 @@ pub const DISPLAY_ROWS: usize = 64;
 pub const DISPLAY_COLS: usize = 128;
 pub const DISPLAY_LAYERS: usize = 2;
 
-
+macro_rules! err_info {
+    () => { format!("TRACE: file: {}, line: {}", file!(), line!()) }
+}
 pub struct Chip8 {
     screen: Arc<Mutex<types::Screen>>,
     memory: Vec<u8>,     // [u8; 2^16],
@@ -74,6 +78,14 @@ impl Chip8 {
         return c;
     }
 
+    pub fn chaos(&mut self) {
+        // TODO: remove this
+        // Move the PC to a random location.
+        let r = ((rand() % 255) + 0x200) as u16;
+        self.pc = r;
+    }
+
+    // TODO: remove "get_"
     pub fn get_quirks_mode(&self) -> &Quirks {
         return &self.quirks;
     }
@@ -115,7 +127,7 @@ impl Chip8 {
         let start_offset = start_offset as usize;
         if bytes.len() + start_offset >= 1 << 16 {
             return Err(CoreError::new(
-                file!(),
+                err_info!(),
                 CoreErrorType::InvalidRom(
                     format!("Rom byte size {} + start_offset > 1<<16", bytes.len())
                 )
@@ -301,6 +313,9 @@ impl Chip8 {
                     }
                     0x00EE => {
                         // RET
+                        if self.sp == 0 {
+                            return Err(CoreError::new(err_info!(), StackOverflow(self.sp)))
+                        }
                         self.sp -= 1;
                         self.pc = self.stack[self.sp as usize];
                     }
@@ -350,7 +365,7 @@ impl Chip8 {
                     }
                     _ => {
                         return Err(CoreError::new(
-                            file!(),
+                            err_info!(),
                             CoreErrorType::InvalidOpcode(opcode)));
                     }
                 }
@@ -361,6 +376,9 @@ impl Chip8 {
             }
             0x2000 => {
                 // (2nnn) CALL addr
+                if self.sp > 15 {
+                    return Err(CoreError::new(err_info!(), StackOverflow(self.sp)))
+                }
                 self.stack[self.sp as usize] = self.pc;
                 self.sp += 1;
                 self.pc = get_nnn!(opcode);
@@ -390,6 +408,10 @@ impl Chip8 {
                         let x = get_x!(opcode);
                         let y = get_y!(opcode);
                         let dist = x.abs_diff(y);
+
+                        if x + dist > self.memory.len() - 1 {
+                            return Err(CoreError::new(err_info!(), InvalidMemoryAccess(self.i as usize + x + dist)));
+                        }
                         if x < y {
                             for z in 0..dist + 1 {
                                 self.memory[self.i as usize + z] = self.v[x + z];
@@ -405,6 +427,9 @@ impl Chip8 {
                         let x = get_x!(opcode);
                         let y = get_y!(opcode);
                         let dist = x.abs_diff(y);
+                        if x + dist > self.memory.len() - 1 {
+                            return Err(CoreError::new(err_info!(), InvalidMemoryAccess(self.i as usize + x + dist)));
+                        }
                         if x < y {
                             for z in 0..dist + 1 {
                                 self.v[x + z] = self.memory[self.i as usize + z];
@@ -417,7 +442,7 @@ impl Chip8 {
                     }
                     _ => {
                         return Err(CoreError::new(
-                            file!(),
+                            err_info!(),
                             CoreErrorType::InvalidOpcode(opcode)));
                     }
                 }
@@ -518,7 +543,7 @@ impl Chip8 {
                     }
                     _ => {
                         return Err(CoreError::new(
-                            file!(),
+                            err_info!(),
                             CoreErrorType::InvalidOpcode(opcode)));
                     }
                 }
@@ -533,7 +558,7 @@ impl Chip8 {
                     }
                     _ => {
                         return Err(CoreError::new(
-                            file!(),
+                            err_info!(),
                             CoreErrorType::InvalidOpcode(opcode)));
                     }
                 }
@@ -592,7 +617,7 @@ impl Chip8 {
                     }
                     _ => {
                         return Err(CoreError::new(
-                            file!(),
+                            err_info!(),
                             CoreErrorType::InvalidOpcode(opcode)));
                     }
                 }
@@ -608,6 +633,9 @@ impl Chip8 {
                     }
                     0x002 => {
                         // XO-CHIP Support: (0xF002) - load 16 bytes audio pattern pointed to by I into audio pattern buffer
+                        if self.i as usize + 15 > self.memory.len() - 1 {
+                            return Err(CoreError::new(err_info!(), InvalidMemoryAccess(self.i as usize + 15)));
+                        }
                         for offset in 0..16 {
                             self.audio_pattern_buffer[offset] =
                                 self.memory[self.i as usize + offset];
@@ -640,7 +668,11 @@ impl Chip8 {
                             }
                             0x1E => {
                                 // (Fx1E) - ADD I, Vx
-                                self.i += self.v[get_x!(opcode)] as u16;
+                                let v_x = self.v[get_x!(opcode)] as u16;
+                                if self.i as usize > self.memory.len() - (v_x as usize) {
+                                    return Err(CoreError::new(err_info!(), InvalidMemoryPtr(self.i as usize + v_x as usize)))
+                                }
+                                self.i += v_x;
                             }
                             0x29 => {
                                 // (Fx29) - LD F, Vx
@@ -669,6 +701,9 @@ impl Chip8 {
                             0x55 => {
                                 // (Fx55) - LD [I], Vx - Store V0..VX in memory starting at i
                                 let x = get_x!(opcode);
+                                if 0xFFFF - self.i < x as u16 {
+                                    return Err(CoreError::new(err_info!(), InvalidMemoryPtr(self.i as usize)));
+                                }
                                 for i in 0..=x {
                                     self.memory[self.i as usize + i] = self.v[i];
                                 }
@@ -679,6 +714,9 @@ impl Chip8 {
                             0x65 => {
                                 // (Fx65) - LD Vx, [I] - Load V0..VX in memory starting at i
                                 let x = get_x!(opcode);
+                                if 0xFFFF - self.i < x as u16 {
+                                    return Err(CoreError::new(err_info!(), InvalidMemoryPtr(self.i as usize)));
+                                }
                                 for i in 0..=x {
                                     self.v[i] = self.memory[self.i as usize + i];
                                 }
@@ -692,7 +730,7 @@ impl Chip8 {
                                 let x = get_x!(opcode);
                                 if x > 8 {
                                     return Err(CoreError::new(
-                                        file!(),
+                                        err_info!(),
                                         CoreErrorType::InvalidOpcode(opcode)));
                                 }
                                 self.rpl[x] = self.v[x];
@@ -703,14 +741,14 @@ impl Chip8 {
                                 let x = get_x!(opcode);
                                 if x > 8 {
                                     return Err(CoreError::new(
-                                        file!(),
+                                        err_info!(),
                                         CoreErrorType::InvalidOpcode(opcode)));
                                 }
                                 self.v[x] = self.rpl[x];
                             }
                             _ => {
                                 return Err(CoreError::new(
-                                    file!(),
+                                    err_info!(),
                                     CoreErrorType::InvalidOpcode(opcode)));
                             }
                         }
@@ -719,7 +757,7 @@ impl Chip8 {
             }
             _ => {
                 return Err(CoreError::new(
-                    file!(),
+                    err_info!(),
                     CoreErrorType::InvalidOpcode(opcode)));
             }
         }
@@ -915,3 +953,5 @@ impl Chip8 {
         }
     }
 }
+
+
