@@ -1,3 +1,4 @@
+use std::error::Error;
 use macroquad::audio;
 use macroquad::prelude::*;
 
@@ -151,6 +152,14 @@ pub fn send_new_config_to_js() -> JsValue {
     serde_wasm_bindgen::to_value(&new_conf).unwrap()
 }
 
+enum EmulatorState {
+    Load,
+    Run,
+    Error,
+    Exit,
+}
+
+
 #[macroquad::main(window_conf)]
 async fn main() {
     const DRAW_METHOD: DrawMethod = DrawMethod::RAW; // DrawMethod::REAL;
@@ -264,7 +273,7 @@ async fn main() {
                     );
                 });
 
-            let quirks = chip.get_quirks_mode();
+            let quirks = chip.quirks_mode();
             let s = format!("Mode: {}", quirks.mode_label);
             draw_text(
                 &s,
@@ -343,7 +352,8 @@ async fn main() {
             config.pause_emulation = !config.pause_emulation;
         }
 
-        // BLOW UP THE CORE
+        // TODO: Remove this
+        // BLOW UP THE CORE - just for fun
         if is_key_pressed(KeyCode::B) {
             chip.chaos();
         }
@@ -351,11 +361,11 @@ async fn main() {
         if config.pause_emulation == false {
             // Run processor
             for _ in 0..config.ticks_per_frame {
-                // TODO: Handle errors gracefully...
                 if let Err(e) = chip.step() {
                     println!("Error: {}", e);
+                    show_error(&chip, e).await;
+                    // return
                 }
-
             }
 
             display.update();
@@ -373,4 +383,35 @@ async fn main() {
         }
         next_frame().await;
     }
+}
+
+async fn show_error(chip: &Chip8, err: core::error::CoreError) {
+    println!("show_error - Error: {:#?}", err);
+    let debug_x = 24.0;
+    let debug_y = 48.0;
+    let font_size = 20.0;
+    let err_box_color = Color::from_rgba(216, 80, 77, 255);
+    let text_color = Color::from_rgba(255, 255, 255, 255);
+
+    loop {
+        draw_rectangle(16.0, 16.0, (WINDOW_WIDTH-32) as f32, (WINDOW_HEIGHT-32) as f32, err_box_color);
+        draw_text("ERROR", WINDOW_WIDTH as f32 / 2.0 - 36.0, 40.0, 32.0, text_color);
+        let err_text = format!("Type: {}\nInfo: {}", err.error_type, err.info);
+        err_text.split("\n").enumerate()
+            .for_each(|(ind, line)| {
+                draw_text(
+                    line,
+                    debug_x,
+                    debug_y + ((ind as f32 + 1.0) * font_size),
+                    font_size,
+                    text_color,
+                );
+            });
+
+        if is_key_pressed(KeyCode::Enter) {
+            break;
+        }
+        next_frame().await;
+    }
+
 }

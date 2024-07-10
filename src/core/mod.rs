@@ -1,23 +1,24 @@
+use crate::core::error::CoreErrorType::*;
+use crate::core::error::*;
 use macroquad::rand::rand;
 use quirks::Mode::*;
 use quirks::Quirks;
 use std::sync::{Arc, Mutex};
-use crate::core::error::*;
-use crate::core::error::CoreErrorType::{InvalidMemoryAccess, InvalidMemoryPtr, StackOverflow};
-use crate::core::quirks::Mode;
 
 #[macro_use]
 mod util;
+pub mod error;
 pub mod quirks;
 pub mod types;
-mod error;
 
 pub const DISPLAY_ROWS: usize = 64;
 pub const DISPLAY_COLS: usize = 128;
 pub const DISPLAY_LAYERS: usize = 2;
 
 macro_rules! err_info {
-    () => { format!("TRACE: file: {}, line: {}", file!(), line!()) }
+    () => {
+        format!("TRACE: file: {}, line: {}", file!(), line!())
+    };
 }
 pub struct Chip8 {
     screen: Arc<Mutex<types::Screen>>,
@@ -78,15 +79,14 @@ impl Chip8 {
         return c;
     }
 
+    // TODO: remove this
     pub fn chaos(&mut self) {
-        // TODO: remove this
         // Move the PC to a random location.
         let r = ((rand() % 255) + 0x200) as u16;
         self.pc = r;
     }
 
-    // TODO: remove "get_"
-    pub fn get_quirks_mode(&self) -> &Quirks {
+    pub fn quirks_mode(&self) -> &Quirks {
         return &self.quirks;
     }
 
@@ -98,18 +98,10 @@ impl Chip8 {
         let mode = mode.to_lowercase();
         // panic!("set core mode: {} ", mode.as_str());
         match mode.as_str() {
-            "chip8modern" | "chip8" => {
-                self.quirks = Quirks::new(Chip8Modern)
-            },
-            "superchipmodern" | "superchip" => {
-                self.quirks = Quirks::new(SuperChipModern)
-            },
-            "superchiplegacy" => {
-                self.quirks = Quirks::new(SuperChipLegacy)
-            },
-            "xochip" => {
-                self.quirks = Quirks::new(XoChip)
-            },
+            "chip8modern" | "chip8" => self.quirks = Quirks::new(Chip8Modern),
+            "superchipmodern" | "superchip" => self.quirks = Quirks::new(SuperChipModern),
+            "superchiplegacy" => self.quirks = Quirks::new(SuperChipLegacy),
+            "xochip" => self.quirks = Quirks::new(XoChip),
             _ => {
                 // TODO: handle this more gracefully
                 panic!("Unknown core mode: {}", mode.as_str());
@@ -128,9 +120,10 @@ impl Chip8 {
         if bytes.len() + start_offset >= 1 << 16 {
             return Err(CoreError::new(
                 err_info!(),
-                CoreErrorType::InvalidRom(
-                    format!("Rom byte size {} + start_offset > 1<<16", bytes.len())
-                )
+                CoreErrorType::InvalidRom(format!(
+                    "Rom byte size {} + start_offset > 1<<16",
+                    bytes.len()
+                )),
             ));
         }
         for (i, v) in bytes.iter().enumerate() {
@@ -314,7 +307,10 @@ impl Chip8 {
                     0x00EE => {
                         // RET
                         if self.sp == 0 {
-                            return Err(CoreError::new(err_info!(), StackOverflow(self.sp)))
+                            return Err(CoreError::new(
+                                err_info!(),
+                                StackOverflow(self.pc, self.sp),
+                            ));
                         }
                         self.sp -= 1;
                         self.pc = self.stack[self.sp as usize];
@@ -353,7 +349,6 @@ impl Chip8 {
                         for layer in 0..DISPLAY_LAYERS {
                             self.clear_layer(layer);
                         }
-
                     }
                     0x00FF => {
                         // 00FF*    Enable extended screen mode
@@ -364,9 +359,7 @@ impl Chip8 {
                         }
                     }
                     _ => {
-                        return Err(CoreError::new(
-                            err_info!(),
-                            CoreErrorType::InvalidOpcode(opcode)));
+                        return Err(CoreError::new(err_info!(), InvalidOpcode(self.pc, opcode)));
                     }
                 }
             }
@@ -377,7 +370,7 @@ impl Chip8 {
             0x2000 => {
                 // (2nnn) CALL addr
                 if self.sp > 15 {
-                    return Err(CoreError::new(err_info!(), StackOverflow(self.sp)))
+                    return Err(CoreError::new(err_info!(), StackOverflow(self.pc, self.sp)));
                 }
                 self.stack[self.sp as usize] = self.pc;
                 self.sp += 1;
@@ -410,7 +403,10 @@ impl Chip8 {
                         let dist = x.abs_diff(y);
 
                         if x + dist > self.memory.len() - 1 {
-                            return Err(CoreError::new(err_info!(), InvalidMemoryAccess(self.i as usize + x + dist)));
+                            return Err(CoreError::new(
+                                err_info!(),
+                                InvalidMemoryAccess(self.pc, self.i as usize + x + dist),
+                            ));
                         }
                         if x < y {
                             for z in 0..dist + 1 {
@@ -428,7 +424,10 @@ impl Chip8 {
                         let y = get_y!(opcode);
                         let dist = x.abs_diff(y);
                         if x + dist > self.memory.len() - 1 {
-                            return Err(CoreError::new(err_info!(), InvalidMemoryAccess(self.i as usize + x + dist)));
+                            return Err(CoreError::new(
+                                err_info!(),
+                                InvalidMemoryAccess(self.pc, self.i as usize + x + dist),
+                            ));
                         }
                         if x < y {
                             for z in 0..dist + 1 {
@@ -441,9 +440,7 @@ impl Chip8 {
                         }
                     }
                     _ => {
-                        return Err(CoreError::new(
-                            err_info!(),
-                            CoreErrorType::InvalidOpcode(opcode)));
+                        return Err(CoreError::new(err_info!(), InvalidOpcode(self.pc, opcode)));
                     }
                 }
             }
@@ -542,9 +539,7 @@ impl Chip8 {
                         self.v[0xF] = (v_x >> 7) & 0x1;
                     }
                     _ => {
-                        return Err(CoreError::new(
-                            err_info!(),
-                            CoreErrorType::InvalidOpcode(opcode)));
+                        return Err(CoreError::new(err_info!(), InvalidOpcode(self.pc, opcode)));
                     }
                 }
             }
@@ -557,9 +552,7 @@ impl Chip8 {
                         }
                     }
                     _ => {
-                        return Err(CoreError::new(
-                            err_info!(),
-                            CoreErrorType::InvalidOpcode(opcode)));
+                        return Err(CoreError::new(err_info!(), InvalidOpcode(self.pc, opcode)));
                     }
                 }
             }
@@ -589,7 +582,9 @@ impl Chip8 {
                 self.v[0xF] = 0;
                 for layer in 0..DISPLAY_LAYERS {
                     if (self.bit_plane_selector >> layer) & 0b1 == 1 {
-                        self.draw_sprite(col, row, n, page_num, layer);
+                        if let Err(e) = self.draw_sprite(col, row, n, page_num, layer) {
+                            return Err(e);
+                        }
                         page_num += 1;
                     }
                 }
@@ -616,9 +611,7 @@ impl Chip8 {
                         }
                     }
                     _ => {
-                        return Err(CoreError::new(
-                            err_info!(),
-                            CoreErrorType::InvalidOpcode(opcode)));
+                        return Err(CoreError::new(err_info!(), InvalidOpcode(self.pc, opcode)));
                     }
                 }
             }
@@ -634,7 +627,10 @@ impl Chip8 {
                     0x002 => {
                         // XO-CHIP Support: (0xF002) - load 16 bytes audio pattern pointed to by I into audio pattern buffer
                         if self.i as usize + 15 > self.memory.len() - 1 {
-                            return Err(CoreError::new(err_info!(), InvalidMemoryAccess(self.i as usize + 15)));
+                            return Err(CoreError::new(
+                                err_info!(),
+                                InvalidMemoryAccess(self.pc, self.i as usize + 15),
+                            ));
                         }
                         for offset in 0..16 {
                             self.audio_pattern_buffer[offset] =
@@ -670,7 +666,10 @@ impl Chip8 {
                                 // (Fx1E) - ADD I, Vx
                                 let v_x = self.v[get_x!(opcode)] as u16;
                                 if self.i as usize > self.memory.len() - (v_x as usize) {
-                                    return Err(CoreError::new(err_info!(), InvalidMemoryPtr(self.i as usize + v_x as usize)))
+                                    return Err(CoreError::new(
+                                        err_info!(),
+                                        InvalidMemoryPtr(self.pc, self.i as usize + v_x as usize),
+                                    ));
                                 }
                                 self.i += v_x;
                             }
@@ -702,7 +701,10 @@ impl Chip8 {
                                 // (Fx55) - LD [I], Vx - Store V0..VX in memory starting at i
                                 let x = get_x!(opcode);
                                 if 0xFFFF - self.i < x as u16 {
-                                    return Err(CoreError::new(err_info!(), InvalidMemoryPtr(self.i as usize)));
+                                    return Err(CoreError::new(
+                                        err_info!(),
+                                        InvalidMemoryPtr(self.pc, self.i as usize),
+                                    ));
                                 }
                                 for i in 0..=x {
                                     self.memory[self.i as usize + i] = self.v[i];
@@ -715,7 +717,10 @@ impl Chip8 {
                                 // (Fx65) - LD Vx, [I] - Load V0..VX in memory starting at i
                                 let x = get_x!(opcode);
                                 if 0xFFFF - self.i < x as u16 {
-                                    return Err(CoreError::new(err_info!(), InvalidMemoryPtr(self.i as usize)));
+                                    return Err(CoreError::new(
+                                        err_info!(),
+                                        InvalidMemoryPtr(self.pc, self.i as usize),
+                                    ));
                                 }
                                 for i in 0..=x {
                                     self.v[i] = self.memory[self.i as usize + i];
@@ -731,7 +736,8 @@ impl Chip8 {
                                 if x > 8 {
                                     return Err(CoreError::new(
                                         err_info!(),
-                                        CoreErrorType::InvalidOpcode(opcode)));
+                                        InvalidOpcode(self.pc, opcode),
+                                    ));
                                 }
                                 self.rpl[x] = self.v[x];
                             }
@@ -742,23 +748,23 @@ impl Chip8 {
                                 if x > 8 {
                                     return Err(CoreError::new(
                                         err_info!(),
-                                        CoreErrorType::InvalidOpcode(opcode)));
+                                        InvalidOpcode(self.pc, opcode),
+                                    ));
                                 }
                                 self.v[x] = self.rpl[x];
                             }
                             _ => {
                                 return Err(CoreError::new(
                                     err_info!(),
-                                    CoreErrorType::InvalidOpcode(opcode)));
+                                    InvalidOpcode(self.pc, opcode),
+                                ));
                             }
                         }
                     }
                 }
             }
             _ => {
-                return Err(CoreError::new(
-                    err_info!(),
-                    CoreErrorType::InvalidOpcode(opcode)));
+                return Err(CoreError::new(err_info!(), InvalidOpcode(self.pc, opcode)));
             }
         }
         Ok(1)
@@ -852,7 +858,14 @@ impl Chip8 {
         }
     }
 
-    fn draw_sprite(&mut self, col: u8, row: u8, sprite_rows: u8, page_num: usize, layer: usize) {
+    fn draw_sprite(
+        &mut self,
+        col: u8,
+        row: u8,
+        sprite_rows: u8,
+        page_num: usize,
+        layer: usize,
+    ) -> Result<(), CoreError> {
         let mut screen_writer = self.screen.lock().unwrap();
         let sprite_offset = self.i as usize;
         if sprite_rows == 0 && self.hires_mode {
@@ -860,6 +873,12 @@ impl Chip8 {
             let page_size = 2 * 16;
             for r in 0..16u16 {
                 let mem_loc = sprite_offset + (page_num * page_size) + (2 * r as usize);
+                if mem_loc > self.memory.len() - 2 {
+                    return Err(CoreError::new(
+                        err_info!(),
+                        InvalidMemoryAccess(self.pc, mem_loc),
+                    ));
+                }
                 let sprite_word =
                     (self.memory[mem_loc] as u16) << 8 | self.memory[mem_loc + 1] as u16;
                 for c in 0..16 {
@@ -951,7 +970,6 @@ impl Chip8 {
                 }
             }
         }
+        Ok(())
     }
 }
-
-
