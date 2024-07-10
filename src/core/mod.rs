@@ -81,8 +81,8 @@ impl Chip8 {
 
     // TODO: remove this
     pub fn chaos(&mut self) {
-        // Move the PC to a random location.
-        let r = ((rand() % 255) + 0x200) as u16;
+        // Move the PC to a random location and let the chaos begin
+        let r = ((rand() % 128) * 2 + 0x200) as u16;
         self.pc = r;
     }
 
@@ -120,7 +120,7 @@ impl Chip8 {
         if bytes.len() + start_offset >= 1 << 16 {
             return Err(CoreError::new(
                 err_info!(),
-                CoreErrorType::InvalidRom(format!(
+                InvalidRom(format!(
                     "Rom byte size {} + start_offset > 1<<16",
                     bytes.len()
                 )),

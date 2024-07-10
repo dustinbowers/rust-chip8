@@ -12,7 +12,7 @@ impl fmt::Display for CoreErrorType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             CoreErrorType::InvalidOpcode(pc, code) => {
-                write!(f, " Invalid Opcode: 0x{:04X}\nPC: 0x{:04X}", code, pc)
+                write!(f, "Invalid Opcode: 0x{:04X}\nPC: 0x{:04X}", code, pc)
             }
             CoreErrorType::StackOverflow(pc, addr) => {
                 write!(f, "Stack Overflow - SP:0x{:04X}\nPC: 0x{:04X} ", addr, pc)
