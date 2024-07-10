@@ -345,7 +345,7 @@ async fn main() {
 
         // TODO: Remove this
         // BLOW UP THE CORE - just for fun
-        if is_key_pressed(KeyCode::B) {
+        if is_key_pressed(KeyCode::Apostrophe) {
             chip.chaos();
         }
 
