@@ -1,10 +1,5 @@
 .PHONY: default build release wasm wasm-release web-server build-test-web
 
-PACKAGE_NAME = chip8
-TARGET_DIR := ./target
-WASM_TYPE := wasm32-unknown-unknown
-DIST_DIR := ./dist
-
 default: build
 
 build:
