@@ -3,10 +3,10 @@
 An emulator written in [Rust](https://www.rust-lang.org/) using [Macroquad](https://macroquad.rs/) for rendering
 
 Currently supported platforms:
-- [CHIP-8](https://en.wikipedia.org/wiki/CHIP-8)
-- Super-Chip 1.1 (Modern)
-- [Super-Chip 1.1 (Legacy)](https://github.com/Chromatophore/HP48-Superchip/blob/master/binaries/SCHIP_origin.txt)
 - [XO-CHIP](https://johnearnest.github.io/Octo/docs/XO-ChipSpecification.html)
+- [CHIP-8](https://en.wikipedia.org/wiki/CHIP-8)
+- [Super-Chip 1.1 (Modern)](https://github.com/Chromatophore/HP48-Superchip)
+- [Super-Chip 1.1 (Legacy)](https://github.com/Chromatophore/HP48-Superchip/blob/master/binaries/SCHIP_origin.txt)
 
 ## What is CHIP-8?
 

@@ -45,13 +45,6 @@ macro_rules! get_kk {
 }
 
 #[macro_export]
-macro_rules! invalid_opcode {
-    ($opcode:expr) => {
-        panic!("Invalid opcode: 0x{:04X}", $opcode)
-    };
-}
-
-#[macro_export]
 macro_rules! ensure_super_chip {
     ($enabled:expr) => {
         if !$enabled {
