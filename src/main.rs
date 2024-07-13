@@ -7,6 +7,11 @@ use {
     std::{fs, io},
 };
 
+#[cfg(feature = "wee_alloc")]
+#[global_allocator]
+static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+
+
 #[cfg(feature = "audio")]
 use macroquad::audio::{play_sound_once, Sound};
 use wasm_bindgen::prelude::wasm_bindgen;
@@ -38,10 +43,6 @@ extern "C" {
     #[wasm_bindgen(js_namespace = console)]
     fn log(s: &str);
 }
-// #[cfg(target_arch = "wasm32")]
-// macro_rules! console_log {
-//     ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
-// }
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
