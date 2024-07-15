@@ -339,8 +339,6 @@ async fn main() {
         }
         // Pause / Unpause updates
         if is_key_pressed(KeyCode::P) {
-            if config.pause_emulation {
-            }
             config.pause_emulation = !config.pause_emulation;
         }
 
