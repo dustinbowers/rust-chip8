@@ -22,7 +22,7 @@ impl Config {
             pause_emulation: false,
             debug_draw: true,
             core_mode: "xochip".to_string(),
-            ticks_per_frame: 500,
+            ticks_per_frame: 100000,
             color_map: vec![
                 rgb_to_int(0.0, 0.0, 0.0),
                 rgb_to_int(0.78, 0.78, 0.78),
