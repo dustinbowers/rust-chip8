@@ -30,9 +30,11 @@ impl Sound {
     pub fn new() -> Self {
         Self {
             pitch: 247,
-            pattern: vec![ 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                           0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff],
-            dirty: true
+            pattern: vec![
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                0xff, 0xff,
+            ],
+            dirty: true,
         }
     }
 }
@@ -56,9 +58,6 @@ pub struct Chip8 {
     halted_for_input: bool,
     waiting_for_vblank: bool,
     quirks: Quirks,
-    // audio_pitch_vx: u8,
-    // audio_pattern_buffer: Vec<u8>,
-    // audio_dirty: bool,
     sound: Sound,
     bit_plane_selector: u8,
 }
@@ -115,7 +114,6 @@ impl Chip8 {
 
     pub fn set_core_mode(&mut self, mode: String) {
         let mode = mode.to_lowercase();
-        // panic!("set core mode: {} ", mode.as_str());
         match mode.as_str() {
             "chip8modern" | "chip8" => self.quirks = Quirks::new(Chip8Modern),
             "superchipmodern" | "superchip" => self.quirks = Quirks::new(SuperChipModern),
@@ -181,16 +179,14 @@ impl Chip8 {
         }
         (st, dt)
     }
-    
+
     pub fn get_sound(&mut self) -> Option<&Sound> {
         match self.sound.dirty {
             true => {
                 self.sound.dirty = false;
                 Some(&self.sound)
             }
-            false => {
-                None
-            }
+            false => None,
         }
     }
 
@@ -662,8 +658,7 @@ impl Chip8 {
                             ));
                         }
                         for offset in 0..16 {
-                            self.sound.pattern[offset] =
-                                self.memory[self.i as usize + offset];
+                            self.sound.pattern[offset] = self.memory[self.i as usize + offset];
                         }
                         self.sound.dirty = true;
                     }
@@ -830,6 +825,7 @@ impl Chip8 {
     fn scroll_plane_down(&mut self, scroll_distance: usize, layer: usize) {
         let mut screen_writer = self.screen.lock().unwrap();
         if layer >= DISPLAY_LAYERS {
+            panic!("invalid layer index: {}", layer);
         }
         for r in (scroll_distance..DISPLAY_ROWS).rev() {
             for c in 0..DISPLAY_COLS {

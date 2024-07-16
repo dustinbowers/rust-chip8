@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default=["audio", "wee_alloc"]
-audio = []
+default=["xo-audio"]
+xo-audio = []
 
 [profile.release]
 lto = true

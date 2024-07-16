@@ -1,6 +1,6 @@
-use std::sync::{Arc, Mutex};
 use macroquad::prelude::*;
-use tinyaudio::{OutputDeviceParameters, run_output_device};
+use std::sync::{Arc, Mutex};
+use tinyaudio::{run_output_device, BaseAudioOutputDevice, OutputDeviceParameters};
 
 #[cfg(not(target_arch = "wasm32"))]
 use {
@@ -12,8 +12,6 @@ use {
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
-
-mod audio;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::JsValue;
 
@@ -23,10 +21,10 @@ mod display;
 mod square_wave;
 
 use crate::config::Config;
+use crate::square_wave::SquareWave;
 use core::Chip8;
 use core::DISPLAY_LAYERS;
 use core::{DISPLAY_COLS, DISPLAY_ROWS};
-use crate::square_wave::SquareWave;
 
 const WINDOW_HEIGHT: i32 = 256;
 const WINDOW_WIDTH: i32 = 512;
@@ -176,8 +174,9 @@ async fn main() {
 
     let square_wave = Arc::new(Mutex::new(SquareWave::new()));
     let mut audio_volume = 0.1f32;
-    // #[cfg(feature = "audio")]
-    // {
+    let mut device: Box<dyn BaseAudioOutputDevice>;
+    #[cfg(feature = "xo-audio")]
+    {
         let params = OutputDeviceParameters {
             channels_count: 1,
             sample_rate: 44100,
@@ -185,7 +184,7 @@ async fn main() {
         };
 
         let sw_handle = Arc::clone(&square_wave);
-        let _device = run_output_device(params, {
+        device = run_output_device(params, {
             move |data| {
                 for samples in data.chunks_mut(params.channels_count) {
                     for sample in samples {
@@ -203,9 +202,9 @@ async fn main() {
                     }
                 }
             }
-        }).unwrap();
-    
-    // }
+        })
+        .unwrap();
+    }
 
     let mut chip = Chip8::new();
     chip.set_core_mode(config.core_mode);
@@ -373,7 +372,7 @@ async fn main() {
             chip.chaos();
         }
 
-        if config.pause_emulation == false {
+        if !config.pause_emulation {
             // Run processor
             for _ in 0..config.ticks_per_frame {
                 if let Err(e) = chip.step() {
@@ -381,25 +380,25 @@ async fn main() {
                     show_error(e).await;
                 }
             }
-
             display.update();
-            // audio.update();
-            
 
             let (st, _) = chip.tick_timers(); // Tick timers at 60Hz
 
             // Handle audio
-            // #[cfg(feature = "audio")]
-            // {
+            #[cfg(feature = "xo-audio")]
+            {
                 let sw_handle = Arc::clone(&square_wave);
                 if st > 0 {
                     if let Some(snd) = chip.get_sound() {
-                        sw_handle.lock().unwrap().set_pattern(snd.pitch, snd.pattern.clone());
+                        sw_handle
+                            .lock()
+                            .unwrap()
+                            .set_pattern(snd.pitch, snd.pattern.clone());
                     };
                 } else {
                     sw_handle.lock().unwrap().set_pattern(128, vec![0u8; 16]);
                 }
-            // }
+            }
         }
         next_frame().await;
     }
@@ -415,20 +414,31 @@ async fn show_error(err: core::error::CoreError) {
     let text_color = Color::from_rgba(255, 255, 255, 255);
 
     loop {
-        draw_rectangle(16.0, 16.0, (WINDOW_WIDTH-32) as f32, (WINDOW_HEIGHT-32) as f32, err_box_color);
-        draw_rectangle(24.0, 24.0, (WINDOW_WIDTH-48) as f32, 42.0 , err_box_color2);
-        draw_text("ERROR", WINDOW_WIDTH as f32 / 2.0 - 36.0, 54.0, 32.0, text_color);
+        draw_rectangle(
+            16.0,
+            16.0,
+            (WINDOW_WIDTH - 32) as f32,
+            (WINDOW_HEIGHT - 32) as f32,
+            err_box_color,
+        );
+        draw_rectangle(24.0, 24.0, (WINDOW_WIDTH - 48) as f32, 42.0, err_box_color2);
+        draw_text(
+            "ERROR",
+            WINDOW_WIDTH as f32 / 2.0 - 36.0,
+            54.0,
+            32.0,
+            text_color,
+        );
         let err_text = format!("Type: {}\nInfo: {}", err.error_type, err.info);
-        err_text.split("\n").enumerate()
-            .for_each(|(ind, line)| {
-                draw_text(
-                    line,
-                    debug_x,
-                    debug_y + ((ind as f32 + 1.0) * font_size),
-                    font_size,
-                    text_color,
-                );
-            });
+        err_text.split("\n").enumerate().for_each(|(ind, line)| {
+            draw_text(
+                line,
+                debug_x,
+                debug_y + ((ind as f32 + 1.0) * font_size),
+                font_size,
+                text_color,
+            );
+        });
         if is_key_pressed(KeyCode::Enter) {
             break;
         }
