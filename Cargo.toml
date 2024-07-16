@@ -11,10 +11,13 @@ audio = []
 lto = true
 
 [dependencies]
-macroquad = { version ="0.4.8", features = ["audio"]}
+macroquad = { version ="0.4.8"}
 wasm-bindgen = "0.2.92"
 js-sys = "0.3.69"
 once_cell = "1.19.0"
 serde = { version = "1.0.203", features = ["derive"] }
 serde-wasm-bindgen = "0.6.5"
 wee_alloc = { version = "0.4.2", optional = true }
+tinyaudio = "0.1.3"
+bitvec = "1.0.1"
+lazy_static = "1.5.0"
