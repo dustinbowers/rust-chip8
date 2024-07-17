@@ -89,8 +89,6 @@ impl Chip8 {
             halted_for_input: false,
             waiting_for_vblank: false,
             quirks: Quirks::new(XoChip),
-            // audio_pitch_vx: 0,
-            // audio_pattern_buffer: vec![0u8; 16],
             sound: Sound::new(),
             bit_plane_selector: 1,
         };
@@ -280,7 +278,6 @@ impl Chip8 {
         }
         let opcode = self.fetch_opcode();
         self.pc += 2;
-        // self.inspect(opcode);
 
         match opcode & 0xF000 {
             0x0000 => {
@@ -608,9 +605,7 @@ impl Chip8 {
                 self.v[0xF] = 0;
                 for layer in 0..DISPLAY_LAYERS {
                     if (self.bit_plane_selector >> layer) & 0b1 == 1 {
-                        if let Err(e) = self.draw_sprite(col, row, n, page_num, layer) {
-                            return Err(e);
-                        }
+                        self.draw_sprite(col, row, n, page_num, layer)?;
                         page_num += 1;
                     }
                 }
