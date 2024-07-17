@@ -1,5 +1,6 @@
-use macroquad::audio;
 use macroquad::prelude::*;
+use std::sync::{Arc, Mutex};
+use tinyaudio::{run_output_device, BaseAudioOutputDevice, OutputDeviceParameters};
 
 #[cfg(not(target_arch = "wasm32"))]
 use {
@@ -11,17 +12,17 @@ use {
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
-
-#[cfg(feature = "audio")]
-use macroquad::audio::{play_sound_once, Sound};
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::JsValue;
 
 mod config;
 mod core;
 mod display;
+mod square_wave;
 
 use crate::config::Config;
+use crate::core::quirks::Mode;
+use crate::square_wave::SquareWave;
 use core::Chip8;
 use core::DISPLAY_LAYERS;
 use core::{DISPLAY_COLS, DISPLAY_ROWS};
@@ -81,9 +82,11 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
 
     // include_bytes!("../roms/xo-chip/color-scroll-test-xochip.xo8").to_vec()
     // include_bytes!("../roms/xo-chip/anEveningToDieFor.xo8").to_vec()
-    include_bytes!("../roms/xo-chip/t8nks.xo8").to_vec()
+    // include_bytes!("../roms/xo-chip/t8nks.xo8").to_vec()
     // include_bytes!("../roms/xo-chip/chip8e-test.c8e").to_vec()
-    // include_bytes!("../roms/xo-chip/superneatboy.ch8").to_vec()
+    include_bytes!("../roms/xo-chip/superneatboy.ch8").to_vec()
+    // include_bytes!("../roms/xo-chip/nyancat.ch8").to_vec()
+    // include_bytes!("../roms/xo-chip/NYAN.xo8").to_vec()
     // include_bytes!("../roms/xo-chip/expedition.ch8").to_vec()
 
     // include_bytes!("../roms/jaxe-roms/chip8archive/xochip/jub8-1.ch8").to_vec()
@@ -156,10 +159,12 @@ pub fn send_new_config_to_js() -> JsValue {
 async fn main() {
     const DRAW_METHOD: DrawMethod = DrawMethod::RAW; // DrawMethod::REAL;
 
-    let mut config = fetch_config();
+    let mut global_config: Arc<Mutex<Config>> = Arc::new(Mutex::new(fetch_config()));
     let rom = fetch_rom_bytes();
 
-    let color_map: Vec<Color> = config
+    let color_map: Vec<Color> = global_config
+        .lock()
+        .unwrap()
         .color_map
         .iter()
         .map(|c| {
@@ -170,20 +175,48 @@ async fn main() {
         })
         .collect();
 
-    let boop: Sound;
-    #[cfg(feature = "audio")]
+    let square_wave = Arc::new(Mutex::new(SquareWave::new()));
+    let mut audio_volume = 0.1f32;
+    let device: Box<dyn BaseAudioOutputDevice>;
+    #[cfg(feature = "xo-audio")]
     {
-        boop = match audio::load_sound_from_bytes(include_bytes!("sine.wav")).await {
-            Ok(sound) => sound,
-            Err(err) => {
-                println!("Error loading sine.wav: {}", err);
-                return;
-            }
+        let params = OutputDeviceParameters {
+            channels_count: 1,
+            sample_rate: 44100,
+            channel_sample_count: 1024,
         };
+
+        let sw_handle = Arc::clone(&square_wave);
+        let config_handle = Arc::clone(&global_config);
+        device = run_output_device(params, {
+            move |data| {
+                if config_handle.lock().unwrap().pause_emulation {
+                    for d in data {
+                        *d = 0.0;
+                    }
+                    return;
+                }
+                for samples in data.chunks_mut(params.channels_count) {
+                    for sample in samples {
+                        let mut sw = sw_handle.lock().unwrap();
+                        *sample = if sw.bit_pattern[(sw.phase_bit + 0.5) as usize] {
+                            audio_volume
+                        } else {
+                            -audio_volume
+                        };
+                        sw.phase_bit += sw.phase_inc;
+                        if (sw.phase_bit + 0.5) as usize >= 128 {
+                            sw.phase_bit = 0.0;
+                        }
+                    }
+                }
+            }
+        })
+        .unwrap();
     }
 
     let mut chip = Chip8::new();
-    chip.set_core_mode(config.core_mode);
+    chip.set_core_mode(&global_config.lock().unwrap().core_mode);
 
     let loaded = chip.load_rom(rom, 0x200);
     match loaded {
@@ -199,6 +232,8 @@ async fn main() {
 
     let mut last_frame_time = get_time();
     loop {
+        let config_handle = Arc::clone(&global_config);
+        let mut config = config_handle.lock().unwrap();
         chip.v_blank();
         match DRAW_METHOD {
             DrawMethod::RAW => {
@@ -348,7 +383,7 @@ async fn main() {
             chip.chaos();
         }
 
-        if config.pause_emulation == false {
+        if !config.pause_emulation {
             // Run processor
             for _ in 0..config.ticks_per_frame {
                 if let Err(e) = chip.step() {
@@ -356,20 +391,37 @@ async fn main() {
                     show_error(e).await;
                 }
             }
-
             display.update();
 
             let (st, _) = chip.tick_timers(); // Tick timers at 60Hz
 
             // Handle audio
-            if st == 1 {
-                // NOTE: technically the 'beep' should play continuously while ST > 0
-                #[cfg(feature = "audio")]
-                {
-                    play_sound_once(&boop);
+            #[cfg(feature = "xo-audio")]
+            {
+                let sw_handle = Arc::clone(&square_wave);
+                if st > 0 {
+                    if let Mode::XoChip = chip.quirks_mode().mode {
+                        if let Some(snd) = chip.get_sound() {
+                            sw_handle
+                                .lock()
+                                .unwrap()
+                                .set_pattern(snd.pitch, snd.pattern.clone());
+                        };
+                    } else {
+                        sw_handle.lock().unwrap().set_pattern(
+                            128,
+                            vec![
+                                0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0x00,
+                                0x00, 0xFF, 0xFF, 0x00, 0x00,
+                            ],
+                        );
+                    }
+                } else {
+                    sw_handle.lock().unwrap().set_pattern(64, vec![0u8; 16]);
                 }
             }
         }
+        drop(config);
         next_frame().await;
     }
 }
@@ -384,20 +436,31 @@ async fn show_error(err: core::error::CoreError) {
     let text_color = Color::from_rgba(255, 255, 255, 255);
 
     loop {
-        draw_rectangle(16.0, 16.0, (WINDOW_WIDTH-32) as f32, (WINDOW_HEIGHT-32) as f32, err_box_color);
-        draw_rectangle(24.0, 24.0, (WINDOW_WIDTH-48) as f32, 42.0 , err_box_color2);
-        draw_text("ERROR", WINDOW_WIDTH as f32 / 2.0 - 36.0, 54.0, 32.0, text_color);
+        draw_rectangle(
+            16.0,
+            16.0,
+            (WINDOW_WIDTH - 32) as f32,
+            (WINDOW_HEIGHT - 32) as f32,
+            err_box_color,
+        );
+        draw_rectangle(24.0, 24.0, (WINDOW_WIDTH - 48) as f32, 42.0, err_box_color2);
+        draw_text(
+            "ERROR",
+            WINDOW_WIDTH as f32 / 2.0 - 36.0,
+            54.0,
+            32.0,
+            text_color,
+        );
         let err_text = format!("Type: {}\nInfo: {}", err.error_type, err.info);
-        err_text.split("\n").enumerate()
-            .for_each(|(ind, line)| {
-                draw_text(
-                    line,
-                    debug_x,
-                    debug_y + ((ind as f32 + 1.0) * font_size),
-                    font_size,
-                    text_color,
-                );
-            });
+        err_text.split("\n").enumerate().for_each(|(ind, line)| {
+            draw_text(
+                line,
+                debug_x,
+                debug_y + ((ind as f32 + 1.0) * font_size),
+                font_size,
+                text_color,
+            );
+        });
         if is_key_pressed(KeyCode::Enter) {
             break;
         }

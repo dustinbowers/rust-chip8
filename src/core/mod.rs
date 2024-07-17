@@ -1,5 +1,6 @@
 use crate::core::error::CoreErrorType::*;
 use crate::core::error::*;
+use crate::core::quirks::Mode;
 use macroquad::rand::rand;
 use quirks::Mode::*;
 use quirks::Quirks;
@@ -19,6 +20,24 @@ macro_rules! err_info {
     () => {
         format!("{}, line: {}", file!(), line!())
     };
+}
+
+pub struct Sound {
+    pub pitch: u8,
+    pub pattern: Vec<u8>,
+    dirty: bool,
+}
+impl Sound {
+    pub fn new() -> Self {
+        Self {
+            pitch: 247,
+            pattern: vec![
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                0xff, 0xff,
+            ],
+            dirty: true,
+        }
+    }
 }
 pub struct Chip8 {
     screen: Arc<Mutex<types::Screen>>,
@@ -40,8 +59,7 @@ pub struct Chip8 {
     halted_for_input: bool,
     waiting_for_vblank: bool,
     quirks: Quirks,
-    audio_pitch_vx: u8,
-    audio_pattern_buffer: Vec<u8>,
+    sound: Sound,
     bit_plane_selector: u8,
 }
 
@@ -71,8 +89,7 @@ impl Chip8 {
             halted_for_input: false,
             waiting_for_vblank: false,
             quirks: Quirks::new(XoChip),
-            audio_pitch_vx: 0,
-            audio_pattern_buffer: vec![0u8; 16],
+            sound: Sound::new(),
             bit_plane_selector: 1,
         };
         c.load_font();
@@ -94,9 +111,8 @@ impl Chip8 {
         self.quirks = quirks;
     }
 
-    pub fn set_core_mode(&mut self, mode: String) {
+    pub fn set_core_mode(&mut self, mode: &String) {
         let mode = mode.to_lowercase();
-        // panic!("set core mode: {} ", mode.as_str());
         match mode.as_str() {
             "chip8modern" | "chip8" => self.quirks = Quirks::new(Chip8Modern),
             "superchipmodern" | "superchip" => self.quirks = Quirks::new(SuperChipModern),
@@ -115,7 +131,7 @@ impl Chip8 {
         }
     }
 
-    pub fn load_rom(&mut self, bytes: Vec<u8>, start_offset: u16) -> Result<(), CoreError> {
+    pub fn load_rom(&mut self, bytes: Vec<u8>, start_offset: u16) -> Result<usize, CoreError> {
         let start_offset = start_offset as usize;
         if bytes.len() + start_offset >= 1 << 16 {
             return Err(CoreError::new(
@@ -129,7 +145,7 @@ impl Chip8 {
         for (i, v) in bytes.iter().enumerate() {
             self.memory[i + start_offset] = *v;
         }
-        Ok(())
+        Ok(bytes.len())
     }
 
     pub fn get_screen(&self) -> Arc<Mutex<types::Screen>> {
@@ -161,6 +177,16 @@ impl Chip8 {
             self.dt -= 1
         }
         (st, dt)
+    }
+
+    pub fn get_sound(&mut self) -> Option<&Sound> {
+        match self.sound.dirty {
+            true => {
+                self.sound.dirty = false;
+                Some(&self.sound)
+            }
+            false => None,
+        }
     }
 
     pub fn v_blank(&mut self) {
@@ -252,7 +278,6 @@ impl Chip8 {
         }
         let opcode = self.fetch_opcode();
         self.pc += 2;
-        // self.inspect(opcode);
 
         match opcode & 0xF000 {
             0x0000 => {
@@ -321,7 +346,6 @@ impl Chip8 {
 
                         for layer in 0..DISPLAY_LAYERS {
                             if (self.bit_plane_selector >> layer) & 0b1 == 1 {
-                                println!("scrolling layer {} right", layer);
                                 self.scroll_layer_right(layer);
                             }
                         }
@@ -332,7 +356,6 @@ impl Chip8 {
 
                         for layer in 0..DISPLAY_LAYERS {
                             if (self.bit_plane_selector >> layer) & 0b1 == 1 {
-                                println!("scrolling layer {} left", layer);
                                 self.scroll_layer_left(layer);
                             }
                         }
@@ -582,9 +605,7 @@ impl Chip8 {
                 self.v[0xF] = 0;
                 for layer in 0..DISPLAY_LAYERS {
                     if (self.bit_plane_selector >> layer) & 0b1 == 1 {
-                        if let Err(e) = self.draw_sprite(col, row, n, page_num, layer) {
-                            return Err(e);
-                        }
+                        self.draw_sprite(col, row, n, page_num, layer)?;
                         page_num += 1;
                     }
                 }
@@ -633,9 +654,9 @@ impl Chip8 {
                             ));
                         }
                         for offset in 0..16 {
-                            self.audio_pattern_buffer[offset] =
-                                self.memory[self.i as usize + offset];
+                            self.sound.pattern[offset] = self.memory[self.i as usize + offset];
                         }
+                        self.sound.dirty = true;
                     }
                     _ => {
                         // Misc (Fx--)
@@ -695,7 +716,7 @@ impl Chip8 {
                             0x3A => {
                                 // XO-CHIP Support: (0xFX3a) - set audio pitch
                                 let x = self.v[get_x!(opcode)];
-                                self.audio_pitch_vx = x;
+                                self.sound.pitch = x;
                             }
                             0x55 => {
                                 // (Fx55) - LD [I], Vx - Store V0..VX in memory starting at i
@@ -785,19 +806,11 @@ impl Chip8 {
             panic!("invalid layer index: {}", layer);
         }
         for r in 0..DISPLAY_ROWS - scroll_distance {
-            println!(
-                "scrolling up row {} by {} pixels to {} on layer {}",
-                r,
-                scroll_distance,
-                r + scroll_distance,
-                layer
-            );
             for c in 0..DISPLAY_COLS {
                 screen_writer[r][c][layer] = screen_writer[r + scroll_distance][c][layer];
             }
         }
         for i in DISPLAY_ROWS - scroll_distance..DISPLAY_ROWS {
-            println!("clearing row {} on layer {}", i, layer);
             for c in 0..DISPLAY_COLS {
                 screen_writer[i][c][layer] = false;
             }
