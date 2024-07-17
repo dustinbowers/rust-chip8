@@ -88,8 +88,6 @@ impl Chip8 {
             halted_for_input: false,
             waiting_for_vblank: false,
             quirks: Quirks::new(XoChip),
-            // audio_pitch_vx: 0,
-            // audio_pattern_buffer: vec![0u8; 16],
             sound: Sound::new(),
             bit_plane_selector: 1,
         };
@@ -112,7 +110,7 @@ impl Chip8 {
         self.quirks = quirks;
     }
 
-    pub fn set_core_mode(&mut self, mode: String) {
+    pub fn set_core_mode(&mut self, mode: &String) {
         let mode = mode.to_lowercase();
         match mode.as_str() {
             "chip8modern" | "chip8" => self.quirks = Quirks::new(Chip8Modern),
@@ -279,7 +277,6 @@ impl Chip8 {
         }
         let opcode = self.fetch_opcode();
         self.pc += 2;
-        // self.inspect(opcode);
 
         match opcode & 0xF000 {
             0x0000 => {
@@ -607,9 +604,7 @@ impl Chip8 {
                 self.v[0xF] = 0;
                 for layer in 0..DISPLAY_LAYERS {
                     if (self.bit_plane_selector >> layer) & 0b1 == 1 {
-                        if let Err(e) = self.draw_sprite(col, row, n, page_num, layer) {
-                            return Err(e);
-                        }
+                        self.draw_sprite(col, row, n, page_num, layer)?;
                         page_num += 1;
                     }
                 }
@@ -721,7 +716,6 @@ impl Chip8 {
                                 // XO-CHIP Support: (0xFX3a) - set audio pitch
                                 let x = self.v[get_x!(opcode)];
                                 self.sound.pitch = x;
-                                self.sound.dirty = true;
                             }
                             0x55 => {
                                 // (Fx55) - LD [I], Vx - Store V0..VX in memory starting at i

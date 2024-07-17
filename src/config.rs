@@ -7,6 +7,7 @@ pub struct Config {
     pub core_mode: String,
     pub ticks_per_frame: u32,
     pub color_map: Vec<u32>,
+    pub audio_level: f32,
 }
 
 fn rgb_to_int(r: f32, g: f32, b: f32) -> u32 {
@@ -21,14 +22,15 @@ impl Config {
         Self {
             pause_emulation: false,
             debug_draw: true,
-            core_mode: "xochip".to_string(),
-            ticks_per_frame: 100000,
+            core_mode: "xo-chip".to_string(),
+            ticks_per_frame: 500,
+            audio_level: 0.1,
             color_map: vec![
                 rgb_to_int(0.0, 0.0, 0.0),
                 rgb_to_int(0.78, 0.78, 0.78),
                 rgb_to_int(0.51, 0.51, 0.51),
                 rgb_to_int(0.32, 0.32, 0.32),
-                rgb_to_int(0.0, 1.0, 0.0),
+                rgb_to_int(0.21, 0.21, 0.21),
             ],
         }
     }
