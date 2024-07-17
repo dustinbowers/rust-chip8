@@ -1,5 +1,6 @@
 use crate::core::error::CoreErrorType::*;
 use crate::core::error::*;
+use crate::core::quirks::Mode;
 use macroquad::rand::rand;
 use quirks::Mode::*;
 use quirks::Quirks;
@@ -112,7 +113,7 @@ impl Chip8 {
         self.quirks = quirks;
     }
 
-    pub fn set_core_mode(&mut self, mode: String) {
+    pub fn set_core_mode(&mut self, mode: &String) {
         let mode = mode.to_lowercase();
         match mode.as_str() {
             "chip8modern" | "chip8" => self.quirks = Quirks::new(Chip8Modern),
@@ -721,7 +722,6 @@ impl Chip8 {
                                 // XO-CHIP Support: (0xFX3a) - set audio pitch
                                 let x = self.v[get_x!(opcode)];
                                 self.sound.pitch = x;
-                                self.sound.dirty = true;
                             }
                             0x55 => {
                                 // (Fx55) - LD [I], Vx - Store V0..VX in memory starting at i
