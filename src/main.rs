@@ -1,6 +1,6 @@
 use macroquad::prelude::*;
 use std::sync::{Arc, Mutex};
-use tinyaudio::{run_output_device, BaseAudioOutputDevice, OutputDeviceParameters};
+use tinyaudio::{run_output_device, OutputDeviceParameters};
 
 #[cfg(not(target_arch = "wasm32"))]
 use {
@@ -159,7 +159,7 @@ pub fn send_new_config_to_js() -> JsValue {
 async fn main() {
     const DRAW_METHOD: DrawMethod = DrawMethod::RAW; // DrawMethod::REAL;
 
-    let mut global_config: Arc<Mutex<Config>> = Arc::new(Mutex::new(fetch_config()));
+    let global_config: Arc<Mutex<Config>> = Arc::new(Mutex::new(fetch_config()));
     let rom = fetch_rom_bytes();
 
     let color_map: Vec<Color> = global_config
@@ -176,8 +176,8 @@ async fn main() {
         .collect();
 
     let square_wave = Arc::new(Mutex::new(SquareWave::new()));
-    let mut audio_volume = 0.1f32;
-    let device: Box<dyn BaseAudioOutputDevice>;
+    let audio_volume = 0.1f32;
+    // let device: Box<dyn BaseAudioOutputDevice>;
     #[cfg(feature = "xo-audio")]
     {
         let params = OutputDeviceParameters {
@@ -188,7 +188,7 @@ async fn main() {
 
         let sw_handle = Arc::clone(&square_wave);
         let config_handle = Arc::clone(&global_config);
-        device = run_output_device(params, {
+        _ = run_output_device(params, {
             move |data| {
                 if config_handle.lock().unwrap().pause_emulation {
                     for d in data {

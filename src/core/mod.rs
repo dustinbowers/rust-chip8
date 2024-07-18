@@ -1,6 +1,5 @@
 use crate::core::error::CoreErrorType::*;
 use crate::core::error::*;
-use crate::core::quirks::Mode;
 use macroquad::rand::rand;
 use quirks::Mode::*;
 use quirks::Quirks;
