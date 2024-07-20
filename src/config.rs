@@ -14,7 +14,7 @@ fn rgb_to_int(r: f32, g: f32, b: f32) -> u32 {
     let r = (r * 255.0) as u32;
     let g = (g * 255.0) as u32;
     let b = (b * 255.0) as u32;
-    (r << 16) | (g << 8) | (b << 0)
+    (r << 16) | (g << 8) | b
 }
 
 impl Config {
@@ -23,15 +23,30 @@ impl Config {
             pause_emulation: false,
             debug_draw: true,
             core_mode: "xo-chip".to_string(),
-            ticks_per_frame: 500,
+            ticks_per_frame: 200000,
             audio_level: 0.1,
             color_map: vec![
                 rgb_to_int(0.0, 0.0, 0.0),
                 rgb_to_int(0.78, 0.78, 0.78),
                 rgb_to_int(0.51, 0.51, 0.51),
                 rgb_to_int(0.32, 0.32, 0.32),
-                rgb_to_int(0.21, 0.21, 0.21),
-            ],
+                
+                rgb_to_int(1.0, 0.0, 0.0),
+                rgb_to_int(1.0, 0.5, 0.0),
+                rgb_to_int(1.0, 1.0, 0.0),
+                rgb_to_int(1.0, 1.0, 0.0),
+                rgb_to_int(0.5, 1.0, 0.0),
+                rgb_to_int(0.0, 1.0, 0.0),
+                rgb_to_int(0.0, 1.0, 0.5),
+                rgb_to_int(0.0, 1.0, 1.0),
+                rgb_to_int(0.0, 0.5, 1.0),
+                rgb_to_int(0.0, 0.0, 1.0),
+                rgb_to_int(0.5, 0.0, 1.0),
+                rgb_to_int(1.0, 0.0, 1.0),
+                rgb_to_int(1.0, 0.0, 0.5),
+                rgb_to_int(0.5, 0.5, 0.5),
+                
+           ],
         }
     }
 }
