@@ -36,7 +36,8 @@
 
     // let rom_url = "/Space%20Invaders%20%5BDavid%20Winter%5D.ch8";
     // let rom_url = "/t8nks.xo8";
-    let rom_url = "NYAN.xo8"
+    // let rom_url = "NYAN.xo8"
+    let rom_url = "alien-inv8sion.ch8"
     let ROM_DATA = "";
     let CONFIG = {};
 
@@ -82,13 +83,32 @@
             on_init: () => {
                 set_wasm(wasm_exports)
                 CONFIG  = send_new_config_to_js();
-                CONFIG.ticks_per_frame = 1500;
+                CONFIG.ticks_per_frame = 200000;
+                // CONFIG.color_map = [
+                //     hex_to_int("#111111"),
+                //     hex_to_int("#00ff00"),
+                //     hex_to_int("#FF0000"),
+                //     hex_to_int("#112244"),
+                // ]
                 CONFIG.color_map = [
-                    hex_to_int("#111111"),
+                    hex_to_int("#000000"),
+                    hex_to_int("#ffffff"),
+                    hex_to_int("#aaaaaa"),
+                    hex_to_int("#555555"),
+                    hex_to_int("#ff0000"),
                     hex_to_int("#00ff00"),
-                    hex_to_int("#FF0000"),
-                    hex_to_int("#112244"),
-                ]
+                    hex_to_int("#0000ff"),
+                    hex_to_int("#ffff00"),
+                    hex_to_int("#880000"),
+                    hex_to_int("#008800"),
+                    hex_to_int("#000088"),
+                    hex_to_int("#888800"),
+                    hex_to_int("#ff00ff"),
+                    hex_to_int("#00ffff"),
+                    hex_to_int("#880088"),
+                    hex_to_int("#008888"),
+                    // , , , 0x555555, 0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0x880000, 0x008800, 0x000088, 0x888800, 0xff00ff, 0x00ffff, 0x880088, 0x008888
+                ];
                 console.log(CONFIG);
                 // CONFIG.core_mode = "superchip";
                 CONFIG.core_mode = "xochip";

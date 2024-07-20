@@ -1,6 +1,6 @@
 use macroquad::prelude::*;
 use std::sync::{Arc, Mutex};
-use tinyaudio::{run_output_device, OutputDeviceParameters};
+use tinyaudio::{run_output_device, OutputDeviceParameters, BaseAudioOutputDevice};
 
 #[cfg(not(target_arch = "wasm32"))]
 use {
@@ -17,14 +17,12 @@ use wasm_bindgen::JsValue;
 
 mod config;
 mod core;
-mod display;
 mod square_wave;
 
 use crate::config::Config;
 use crate::core::quirks::Mode;
 use crate::square_wave::SquareWave;
 use core::Chip8;
-use core::DISPLAY_LAYERS;
 use core::{DISPLAY_COLS, DISPLAY_ROWS};
 
 const WINDOW_HEIGHT: i32 = 256;
@@ -81,13 +79,15 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
     // include_bytes!("../roms/programs/Keypad Test [Hap, 2006].ch8").to_vec()
 
     // include_bytes!("../roms/xo-chip/color-scroll-test-xochip.xo8").to_vec()
+    // include_bytes!("../roms/xo-chip/scroll_edge_test_b.ch8").to_vec()
     // include_bytes!("../roms/xo-chip/anEveningToDieFor.xo8").to_vec()
     // include_bytes!("../roms/xo-chip/t8nks.xo8").to_vec()
     // include_bytes!("../roms/xo-chip/chip8e-test.c8e").to_vec()
-    include_bytes!("../roms/xo-chip/superneatboy.ch8").to_vec()
+    // include_bytes!("../roms/xo-chip/superneatboy.ch8").to_vec()
     // include_bytes!("../roms/xo-chip/nyancat.ch8").to_vec()
     // include_bytes!("../roms/xo-chip/NYAN.xo8").to_vec()
     // include_bytes!("../roms/xo-chip/expedition.ch8").to_vec()
+    include_bytes!("../roms/xo-chip/alien-inv8sion.ch8").to_vec()
 
     // include_bytes!("../roms/jaxe-roms/chip8archive/xochip/jub8-1.ch8").to_vec()
     // include_bytes!("../roms/jaxe-roms/chip8archive/xochip/flutterby.ch8").to_vec()
@@ -124,12 +124,6 @@ fn load_rom_file(filename: &str) -> io::Result<Vec<u8>> {
     Ok(buffer)
 }
 
-#[allow(dead_code)]
-enum DrawMethod {
-    RAW,
-    REAL,
-}
-
 const KEY_MAP: &[(KeyCode, core::types::Key)] = &[
     (KeyCode::Key1, core::types::Key::Key1),
     (KeyCode::Key2, core::types::Key::Key2),
@@ -157,7 +151,6 @@ pub fn send_new_config_to_js() -> JsValue {
 
 #[macroquad::main(window_conf)]
 async fn main() {
-    const DRAW_METHOD: DrawMethod = DrawMethod::RAW; // DrawMethod::REAL;
 
     let global_config: Arc<Mutex<Config>> = Arc::new(Mutex::new(fetch_config()));
     let rom = fetch_rom_bytes();
@@ -170,14 +163,14 @@ async fn main() {
         .map(|c| {
             let r = ((c >> 16) & 0xFFu32) as f32 / 255.0;
             let g = ((c >> 8) & 0xFFu32) as f32 / 255.0;
-            let b = ((c >> 0) & 0xFFu32) as f32 / 255.0;
+            let b = ((c) & 0xFFu32) as f32 / 255.0;
             Color::new(r, g, b, 1.0)
         })
         .collect();
 
     let square_wave = Arc::new(Mutex::new(SquareWave::new()));
     let audio_volume = 0.1f32;
-    // let device: Box<dyn BaseAudioOutputDevice>;
+    let device: Box<dyn BaseAudioOutputDevice>;
     #[cfg(feature = "xo-audio")]
     {
         let params = OutputDeviceParameters {
@@ -188,7 +181,7 @@ async fn main() {
 
         let sw_handle = Arc::clone(&square_wave);
         let config_handle = Arc::clone(&global_config);
-        _ = run_output_device(params, {
+        device = run_output_device(params, {
             move |data| {
                 if config_handle.lock().unwrap().pause_emulation {
                     for d in data {
@@ -228,41 +221,26 @@ async fn main() {
         }
     }
 
-    let mut display = display::Display::new(chip.get_screen(), DISPLAY_ROWS, DISPLAY_COLS);
 
     let mut last_frame_time = get_time();
     loop {
         let config_handle = Arc::clone(&global_config);
         let mut config = config_handle.lock().unwrap();
         chip.v_blank();
-        match DRAW_METHOD {
-            DrawMethod::RAW => {
-                let reader = display.screen.lock().unwrap();
-                for (ri, r) in reader.iter().enumerate() {
-                    for (ci, c) in r.iter().enumerate() {
-                        let mut color_ind: u8 = 0;
-                        for i in 0..DISPLAY_LAYERS {
-                            if c[i] {
-                                color_ind |= 1 << i;
-                            }
-                        }
-                        let color = color_map[color_ind as usize];
-                        let x = ci as f32 * PIXEL_WIDTH;
-                        let y = ri as f32 * PIXEL_HEIGHT;
-                        draw_rectangle(x, y, PIXEL_WIDTH, PIXEL_HEIGHT, color);
+       
+        // Draw the screen
+        for (ri, r) in chip.get_screen().lock().unwrap().iter().enumerate() {
+            for (ci, c) in r.iter().enumerate() {
+                let mut color_ind: u8 = 0;
+                for i in 0..c.len() {
+                    if c[i] {
+                        color_ind |= 1 << i;
                     }
                 }
-            }
-            DrawMethod::REAL => {
-                for (ri, c) in display.pixels.iter().enumerate() {
-                    for (ci, block) in c.iter().enumerate() {
-                        let b = *block;
-                        let color = color_u8!(b, b, b, 255);
-                        let x = ci as f32 * PIXEL_WIDTH;
-                        let y = ri as f32 * PIXEL_HEIGHT;
-                        draw_rectangle(x, y, PIXEL_WIDTH, PIXEL_HEIGHT, color);
-                    }
-                }
+                let color = color_map[color_ind as usize];
+                let x = ci as f32 * PIXEL_WIDTH;
+                let y = ri as f32 * PIXEL_HEIGHT;
+                draw_rectangle(x, y, PIXEL_WIDTH, PIXEL_HEIGHT, color);
             }
         }
 
@@ -315,14 +293,14 @@ async fn main() {
             let fps = 1.0 / frame_delta;
             draw_text(
                 &format!("FPS: {:?}", fps as u32),
-                WINDOW_WIDTH as f32 - 64.0,
+                WINDOW_WIDTH as f32 - 100.0,
                 12.0,
                 20.0,
                 RED,
             );
             draw_text(
-                &format!("TPF: {:?}", config.ticks_per_frame as u32),
-                WINDOW_WIDTH as f32 - 80.0,
+                &format!("IPF: {:?}", config.ticks_per_frame as u32),
+                WINDOW_WIDTH as f32 - 100.0,
                 24.0,
                 20.0,
                 RED,
@@ -391,7 +369,6 @@ async fn main() {
                     show_error(e).await;
                 }
             }
-            display.update();
 
             let (st, _) = chip.tick_timers(); // Tick timers at 60Hz
 

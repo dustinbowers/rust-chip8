@@ -13,7 +13,7 @@ pub mod types;
 
 pub const DISPLAY_ROWS: usize = 64;
 pub const DISPLAY_COLS: usize = 128;
-pub const DISPLAY_LAYERS: usize = 2;
+pub const DISPLAY_LAYERS: usize = 4;
 
 macro_rules! err_info {
     () => {
@@ -116,7 +116,7 @@ impl Chip8 {
             "chip8modern" | "chip8" => self.quirks = Quirks::new(Chip8Modern),
             "superchipmodern" | "superchip" => self.quirks = Quirks::new(SuperChipModern),
             "superchiplegacy" => self.quirks = Quirks::new(SuperChipLegacy),
-            "xochip" => self.quirks = Quirks::new(XoChip),
+            "xo-chip" | "xochip" => self.quirks = Quirks::new(XoChip),
             _ => {
                 // TODO: handle this more gracefully
                 panic!("Unknown core mode: {}", mode.as_str());
@@ -880,7 +880,7 @@ impl Chip8 {
     ) -> Result<(), CoreError> {
         let mut screen_writer = self.screen.lock().unwrap();
         let sprite_offset = self.i as usize;
-        if sprite_rows == 0 && self.hires_mode {
+        if sprite_rows == 0 {
             // draw a SuperChip 16x16 sprite
             let page_size = 2 * 16;
             for r in 0..16u16 {
@@ -895,25 +895,58 @@ impl Chip8 {
                     (self.memory[mem_loc] as u16) << 8 | self.memory[mem_loc + 1] as u16;
                 for c in 0..16 {
                     let bit = (sprite_word >> c) & 0x1 == 1;
-                    let mut screen_x = col % DISPLAY_COLS as u8;
-                    let mut screen_y = row % DISPLAY_ROWS as u8;
-                    screen_x += 16 - c;
-                    screen_y += r as u8;
-                    if self.quirks.clipping {
-                        if screen_x as usize >= DISPLAY_COLS {
-                            continue;
+                    
+                    if self.hires_mode {
+                        let mut screen_x = col % DISPLAY_COLS as u8;
+                        let mut screen_y = row % DISPLAY_ROWS as u8;
+                        screen_x += 16 - c;
+                        screen_y += r as u8;
+                        if self.quirks.clipping {
+                            if screen_x as usize >= DISPLAY_COLS {
+                                continue;
+                            }
+                            if screen_y as usize >= DISPLAY_ROWS {
+                                continue;
+                            }
                         }
-                        if screen_y as usize >= DISPLAY_ROWS {
-                            continue;
+                        screen_x %= DISPLAY_COLS as u8;
+                        screen_y %= DISPLAY_ROWS as u8;
+                        let curr = &mut screen_writer[screen_y as usize][screen_x as usize][layer];
+                        if bit && *curr {
+                            self.v[0xF] = 1;
                         }
+                        *curr ^= bit;
+                    } else {
+                        let mut screen_x = col % (DISPLAY_COLS / 2) as u8;
+                        let mut screen_y = row % (DISPLAY_ROWS / 2) as u8;
+
+                        screen_x += 16 - c;
+                        screen_y += r as u8;
+
+                        if self.quirks.clipping {
+                            if screen_x as usize >= DISPLAY_COLS / 2 {
+                                continue;
+                            }
+                            if screen_y as usize >= DISPLAY_ROWS / 2 {
+                                continue;
+                            }
+                        }
+
+                        screen_x *= 2;
+                        screen_y *= 2;
+
+                        for i in 0..2u8 {
+                            for j in 0..2u8 {
+                                let curr = &mut screen_writer
+                                    [((screen_y + j) % (DISPLAY_ROWS as u8)) as usize]
+                                    [((screen_x + i) % (DISPLAY_COLS as u8)) as usize][layer];
+                                if bit && *curr {
+                                    self.v[0xF] = 1;
+                                }
+                                *curr ^= bit;
+                            }
+                        } 
                     }
-                    screen_x %= DISPLAY_COLS as u8;
-                    screen_y %= DISPLAY_ROWS as u8;
-                    let curr = &mut screen_writer[screen_y as usize][screen_x as usize][layer];
-                    if bit && *curr {
-                        self.v[0xF] = 1;
-                    }
-                    *curr ^= bit;
                 }
             }
         } else {
