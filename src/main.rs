@@ -1,7 +1,7 @@
 use macroquad::prelude::*;
-use std::sync::{Arc, Mutex, RwLock};
 use once_cell::sync::Lazy;
-use tinyaudio::{run_output_device, OutputDeviceParameters, BaseAudioOutputDevice};
+use std::sync::{Arc, Mutex, RwLock};
+use tinyaudio::{run_output_device, BaseAudioOutputDevice, OutputDeviceParameters};
 
 #[cfg(not(target_arch = "wasm32"))]
 use {
@@ -21,11 +21,11 @@ mod core;
 mod square_wave;
 
 use crate::config::Config;
+use crate::core::error::CoreError;
 use crate::core::quirks::Mode;
 use crate::square_wave::SquareWave;
 use core::Chip8;
 use core::{DISPLAY_COLS, DISPLAY_ROWS};
-use crate::core::error::CoreError;
 
 const WINDOW_HEIGHT: i32 = 256;
 const WINDOW_WIDTH: i32 = 512;
@@ -157,7 +157,6 @@ pub fn reset_core() {
     *state = EmuState::LOAD;
 }
 
-
 #[derive(Clone, Copy, PartialEq)]
 enum EmuState {
     PRELOAD,
@@ -200,7 +199,7 @@ async fn main() {
                     for d in data {
                         *d = 0.0;
                     }
-                    return
+                    return;
                 }
 
                 for samples in data.chunks_mut(params.channels_count) {
@@ -219,7 +218,8 @@ async fn main() {
                 }
                 // }
             }
-        }).unwrap();
+        })
+        .unwrap();
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -262,14 +262,10 @@ async fn main() {
             chip.set_quirks_mode(core::quirks::Quirks::new(Mode::Chip8Modern));
         }
         if is_key_pressed(KeyCode::Key8) {
-            chip.set_quirks_mode(core::quirks::Quirks::new(
-                Mode::SuperChipModern,
-            ));
+            chip.set_quirks_mode(core::quirks::Quirks::new(Mode::SuperChipModern));
         }
         if is_key_pressed(KeyCode::Key9) {
-            chip.set_quirks_mode(core::quirks::Quirks::new(
-                Mode::SuperChipLegacy,
-            ));
+            chip.set_quirks_mode(core::quirks::Quirks::new(Mode::SuperChipLegacy));
         }
         if is_key_pressed(KeyCode::Key0) {
             chip.set_quirks_mode(core::quirks::Quirks::new(Mode::XoChip));
@@ -277,11 +273,11 @@ async fn main() {
 
         if is_key_pressed(KeyCode::Minus) {
             let mut config = config_handle.lock().unwrap();
-            let increment = get_ipf_increment(config.ticks_per_frame); 
+            let increment = get_ipf_increment(config.ticks_per_frame);
             config.ticks_per_frame -= increment;
             config.ticks_per_frame = config.ticks_per_frame.clamp(1, 200000);
         }
-        
+
         if is_key_pressed(KeyCode::Equal) {
             let mut config = config_handle.lock().unwrap();
             let increment = get_ipf_increment(config.ticks_per_frame);
@@ -343,7 +339,7 @@ async fn main() {
                 config_handle.update(new_config);
                 chip.set_core_mode(&config_handle.core_mode);
 
-                color_map = config_handle 
+                color_map = config_handle
                     .color_map
                     .iter()
                     .map(|c| {
@@ -383,7 +379,7 @@ async fn main() {
                         }
                     }
                     let (st, _) = chip.tick_timers(); // Tick timers at 60Hz
-                    // Handle audio
+                                                      // Handle audio
                     #[cfg(feature = "xo-audio")]
                     {
                         let sw_handle = Arc::clone(&global_square_wave);
@@ -399,8 +395,8 @@ async fn main() {
                                 sw_handle.lock().unwrap().set_pattern(
                                     128,
                                     vec![
-                                        0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0x00,
-                                        0x00, 0xFF, 0xFF, 0x00, 0x00,
+                                        0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF,
+                                        0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00,
                                     ],
                                 );
                             }
@@ -414,9 +410,7 @@ async fn main() {
                 if let Some(err) = &core_error {
                     show_error(err);
                 }
-                if is_key_pressed(KeyCode::Enter) {
-                    
-                }
+                if is_key_pressed(KeyCode::Enter) {}
             }
             EmuState::EXIT => {
                 return;
@@ -502,31 +496,31 @@ fn show_error(err: &CoreError) {
     let err_box_color2 = Color::from_rgba(177, 60, 57, 255);
     let text_color = Color::from_rgba(255, 255, 255, 255);
 
-        draw_rectangle(
-            16.0,
-            16.0,
-            (WINDOW_WIDTH - 32) as f32,
-            (WINDOW_HEIGHT - 32) as f32,
-            err_box_color,
-        );
-        draw_rectangle(24.0, 24.0, (WINDOW_WIDTH - 48) as f32, 42.0, err_box_color2);
+    draw_rectangle(
+        16.0,
+        16.0,
+        (WINDOW_WIDTH - 32) as f32,
+        (WINDOW_HEIGHT - 32) as f32,
+        err_box_color,
+    );
+    draw_rectangle(24.0, 24.0, (WINDOW_WIDTH - 48) as f32, 42.0, err_box_color2);
+    draw_text(
+        "ERROR",
+        WINDOW_WIDTH as f32 / 2.0 - 36.0,
+        54.0,
+        32.0,
+        text_color,
+    );
+    let err_text = format!("Type: {}\nInfo: {}", err.error_type, err.info);
+    err_text.split("\n").enumerate().for_each(|(ind, line)| {
         draw_text(
-            "ERROR",
-            WINDOW_WIDTH as f32 / 2.0 - 36.0,
-            54.0,
-            32.0,
+            line,
+            debug_x,
+            debug_y + ((ind as f32 + 1.0) * font_size),
+            font_size,
             text_color,
         );
-        let err_text = format!("Type: {}\nInfo: {}", err.error_type, err.info);
-        err_text.split("\n").enumerate().for_each(|(ind, line)| {
-            draw_text(
-                line,
-                debug_x,
-                debug_y + ((ind as f32 + 1.0) * font_size),
-                font_size,
-                text_color,
-            );
-        });
+    });
 }
 
 fn get_ipf_increment(val: u32) -> u32 {
