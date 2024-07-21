@@ -1,5 +1,6 @@
 use macroquad::prelude::*;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
+use once_cell::sync::Lazy;
 use tinyaudio::{run_output_device, OutputDeviceParameters, BaseAudioOutputDevice};
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -24,6 +25,7 @@ use crate::core::quirks::Mode;
 use crate::square_wave::SquareWave;
 use core::Chip8;
 use core::{DISPLAY_COLS, DISPLAY_ROWS};
+use crate::core::error::CoreError;
 
 const WINDOW_HEIGHT: i32 = 256;
 const WINDOW_WIDTH: i32 = 512;
@@ -84,10 +86,10 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
     // include_bytes!("../roms/xo-chip/t8nks.xo8").to_vec()
     // include_bytes!("../roms/xo-chip/chip8e-test.c8e").to_vec()
     // include_bytes!("../roms/xo-chip/superneatboy.ch8").to_vec()
-    // include_bytes!("../roms/xo-chip/nyancat.ch8").to_vec()
+    include_bytes!("../roms/xo-chip/nyancat.ch8").to_vec()
     // include_bytes!("../roms/xo-chip/NYAN.xo8").to_vec()
     // include_bytes!("../roms/xo-chip/expedition.ch8").to_vec()
-    include_bytes!("../roms/xo-chip/alien-inv8sion.ch8").to_vec()
+    // include_bytes!("../roms/xo-chip/alien-inv8sion.ch8").to_vec()
 
     // include_bytes!("../roms/jaxe-roms/chip8archive/xochip/jub8-1.ch8").to_vec()
     // include_bytes!("../roms/jaxe-roms/chip8archive/xochip/flutterby.ch8").to_vec()
@@ -149,46 +151,58 @@ pub fn send_new_config_to_js() -> JsValue {
     serde_wasm_bindgen::to_value(&new_conf).unwrap()
 }
 
+#[wasm_bindgen]
+pub fn reset_core() {
+    let mut state = STATE.write().unwrap();
+    *state = EmuState::LOAD;
+}
+
+
+#[derive(Clone, Copy, PartialEq)]
+enum EmuState {
+    PRELOAD,
+    LOAD,
+    RUN,
+    ERROR,
+    EXIT,
+}
+
+static STATE: Lazy<Arc<RwLock<EmuState>>> = Lazy::new(|| Arc::new(RwLock::new(EmuState::PRELOAD)));
+
 #[macroquad::main(window_conf)]
 async fn main() {
-
-    let global_config: Arc<Mutex<Config>> = Arc::new(Mutex::new(fetch_config()));
-    let rom = fetch_rom_bytes();
-
-    let color_map: Vec<Color> = global_config
-        .lock()
-        .unwrap()
-        .color_map
-        .iter()
-        .map(|c| {
-            let r = ((c >> 16) & 0xFFu32) as f32 / 255.0;
-            let g = ((c >> 8) & 0xFFu32) as f32 / 255.0;
-            let b = ((c) & 0xFFu32) as f32 / 255.0;
-            Color::new(r, g, b, 1.0)
-        })
-        .collect();
-
-    let square_wave = Arc::new(Mutex::new(SquareWave::new()));
-    let audio_volume = 0.1f32;
+    let global_square_wave = Arc::new(Mutex::new(SquareWave::new()));
+    let mut audio_volume = 0.1f32;
     let device: Box<dyn BaseAudioOutputDevice>;
+
+    let mut chip: Chip8 = Chip8::new();
+    let mut core_error: Option<CoreError> = None;
+    let global_config: Arc<Mutex<Config>> = Arc::new(Mutex::new(Config::new()));
+    let mut color_map: Vec<Color> = vec![];
+    let mut rom: Vec<u8>;
+
     #[cfg(feature = "xo-audio")]
     {
         let params = OutputDeviceParameters {
             channels_count: 1,
             sample_rate: 44100,
-            channel_sample_count: 1024,
+            channel_sample_count: 735,
         };
 
-        let sw_handle = Arc::clone(&square_wave);
-        let config_handle = Arc::clone(&global_config);
+        let sw_handle = Arc::clone(&global_square_wave);
+        let audio_config_handle = Arc::clone(&global_config);
         device = run_output_device(params, {
             move |data| {
-                if config_handle.lock().unwrap().pause_emulation {
+                let c = audio_config_handle.lock().unwrap();
+                let paused = c.pause_emulation;
+                drop(c);
+                if paused {
                     for d in data {
                         *d = 0.0;
                     }
-                    return;
+                    return
                 }
+
                 for samples in data.chunks_mut(params.channels_count) {
                     for sample in samples {
                         let mut sw = sw_handle.lock().unwrap();
@@ -203,37 +217,102 @@ async fn main() {
                         }
                     }
                 }
+                // }
             }
+        }).unwrap();
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let mut s = STATE.write().unwrap();
+        *s = EmuState::LOAD;
+        drop(s);
+    }
+
+    // TODO: Potentially move color_map into this its own struct?
+    color_map = global_config
+        .lock()
+        .unwrap()
+        .color_map
+        .iter()
+        .map(|c| {
+            let r = ((c >> 16) & 0xFFu32) as f32 / 255.0;
+            let g = ((c >> 8) & 0xFFu32) as f32 / 255.0;
+            let b = ((c) & 0xFFu32) as f32 / 255.0;
+            Color::new(r, g, b, 1.0)
         })
-        .unwrap();
-    }
-
-    let mut chip = Chip8::new();
-    chip.set_core_mode(&global_config.lock().unwrap().core_mode);
-
-    let loaded = chip.load_rom(rom, 0x200);
-    match loaded {
-        Ok(b) => {
-            println!("Loaded {:?} ROM bytes", b);
-        }
-        Err(err) => {
-            panic!("Error loading ROM bytes: {}", err);
-        }
-    }
-
+        .collect();
 
     let mut last_frame_time = get_time();
     loop {
         let config_handle = Arc::clone(&global_config);
-        let mut config = config_handle.lock().unwrap();
-        chip.v_blank();
-       
+
+        // Handle user input
+        let keys_pressed = get_keys_down();
+        for (k, v) in KEY_MAP.iter() {
+            if keys_pressed.contains(k) {
+                chip.set_key_state(*v, true);
+            } else {
+                chip.set_key_state(*v, false);
+            }
+        }
+
+        // Switch modes
+        if is_key_pressed(KeyCode::Key7) {
+            chip.set_quirks_mode(core::quirks::Quirks::new(Mode::Chip8Modern));
+        }
+        if is_key_pressed(KeyCode::Key8) {
+            chip.set_quirks_mode(core::quirks::Quirks::new(
+                Mode::SuperChipModern,
+            ));
+        }
+        if is_key_pressed(KeyCode::Key9) {
+            chip.set_quirks_mode(core::quirks::Quirks::new(
+                Mode::SuperChipLegacy,
+            ));
+        }
+        if is_key_pressed(KeyCode::Key0) {
+            chip.set_quirks_mode(core::quirks::Quirks::new(Mode::XoChip));
+        }
+
+        if is_key_pressed(KeyCode::Minus) {
+            let mut config = config_handle.lock().unwrap();
+            let increment = get_ipf_increment(config.ticks_per_frame); 
+            config.ticks_per_frame -= increment;
+            config.ticks_per_frame = config.ticks_per_frame.clamp(1, 200000);
+        }
+        
+        if is_key_pressed(KeyCode::Equal) {
+            let mut config = config_handle.lock().unwrap();
+            let increment = get_ipf_increment(config.ticks_per_frame);
+            config.ticks_per_frame += increment;
+            config.ticks_per_frame = config.ticks_per_frame.clamp(1, 200000);
+        }
+
+        // Toggle debug output
+        if is_key_pressed(KeyCode::I) {
+            let mut config = config_handle.lock().unwrap();
+            config.debug_draw = !config.debug_draw;
+        }
+        // Pause / Unpause updates
+        if is_key_pressed(KeyCode::P) {
+            let mut config = config_handle.lock().unwrap();
+            config.pause_emulation = !config.pause_emulation;
+        }
+
+        // TODO: Remove this
+        // BLOW UP THE CORE - just for fun
+        if is_key_pressed(KeyCode::F5) {
+            chip.chaos();
+        }
+
         // Draw the screen
+        chip.v_blank();
         for (ri, r) in chip.get_screen().lock().unwrap().iter().enumerate() {
             for (ci, c) in r.iter().enumerate() {
                 let mut color_ind: u8 = 0;
-                for i in 0..c.len() {
-                    if c[i] {
+                for (i, c) in c.iter().enumerate() {
+                    if *c {
                         color_ind |= 1 << i;
                     }
                 }
@@ -243,6 +322,107 @@ async fn main() {
                 draw_rectangle(x, y, PIXEL_WIDTH, PIXEL_HEIGHT, color);
             }
         }
+
+        let current_state = {
+            let state_read = STATE.read().unwrap();
+            *state_read
+        };
+        match current_state {
+            EmuState::PRELOAD => {
+                let size = 48.0;
+                let str = "Ready...";
+                let x = WINDOW_WIDTH as f32 / 2.0 - (size / 2.0 * str.len() as f32 / 2.0);
+                let y = WINDOW_HEIGHT as f32 / 2.0;
+                draw_text(str, x, y, size, WHITE);
+            }
+            EmuState::LOAD => {
+                chip.reset();
+                rom = fetch_rom_bytes();
+                let new_config = fetch_config();
+                let mut config_handle = global_config.lock().unwrap();
+                config_handle.update(new_config);
+                chip.set_core_mode(&config_handle.core_mode);
+
+                color_map = config_handle 
+                    .color_map
+                    .iter()
+                    .map(|c| {
+                        let r = ((c >> 16) & 0xFFu32) as f32 / 255.0;
+                        let g = ((c >> 8) & 0xFFu32) as f32 / 255.0;
+                        let b = ((c) & 0xFFu32) as f32 / 255.0;
+                        Color::new(r, g, b, 1.0)
+                    })
+                    .collect();
+
+                let loaded = chip.load_rom(rom, 0x200);
+                match loaded {
+                    Ok(b) => {
+                        println!("Loaded {:?} ROM bytes", b);
+                    }
+                    Err(err) => {
+                        panic!("Error loading ROM bytes: {}", err);
+                    }
+                }
+
+                let mut state_writer = STATE.write().unwrap();
+                *state_writer = EmuState::RUN;
+                drop(config_handle);
+            }
+            EmuState::RUN => {
+                // Run processor
+                let config_handle = Arc::clone(&global_config);
+                let config = config_handle.lock().unwrap();
+
+                if !config.pause_emulation {
+                    for _ in 0..config.ticks_per_frame {
+                        if let Err(e) = chip.step() {
+                            println!("Error: {}", e);
+                            core_error = Some(e);
+                            let mut state_writer = STATE.write().unwrap();
+                            *state_writer = EmuState::ERROR;
+                        }
+                    }
+                    let (st, _) = chip.tick_timers(); // Tick timers at 60Hz
+                    // Handle audio
+                    #[cfg(feature = "xo-audio")]
+                    {
+                        let sw_handle = Arc::clone(&global_square_wave);
+                        if st > 0 {
+                            if let Mode::XoChip = chip.quirks_mode().mode {
+                                if let Some(snd) = chip.get_sound() {
+                                    sw_handle
+                                        .lock()
+                                        .unwrap()
+                                        .set_pattern(snd.pitch, snd.pattern.clone());
+                                }
+                            } else {
+                                sw_handle.lock().unwrap().set_pattern(
+                                    128,
+                                    vec![
+                                        0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0x00,
+                                        0x00, 0xFF, 0xFF, 0x00, 0x00,
+                                    ],
+                                );
+                            }
+                        } else {
+                            sw_handle.lock().unwrap().set_pattern(64, vec![0u8; 16]);
+                        }
+                    }
+                }
+            }
+            EmuState::ERROR => {
+                if let Some(err) = &core_error {
+                    show_error(err);
+                }
+                if is_key_pressed(KeyCode::Enter) {
+                    
+                }
+            }
+            EmuState::EXIT => {
+                return;
+            }
+        };
+        let config = global_config.lock().unwrap();
 
         if config.pause_emulation {
             let pause_size = 48.0;
@@ -256,7 +436,7 @@ async fn main() {
                 pause_size,
                 RED,
             );
-            draw_text(&pause_str, x, y, pause_size, BLACK);
+            draw_text(pause_str, x, y, pause_size, BLACK);
         }
 
         // Draw debug if enabled
@@ -305,105 +485,15 @@ async fn main() {
                 20.0,
                 RED,
             );
-
             last_frame_time = now;
         }
-
-        // Handle user input
-        let keys_pressed = get_keys_down();
-        for (k, v) in KEY_MAP.iter() {
-            if keys_pressed.contains(k) {
-                chip.set_key_state(*v, true);
-            } else {
-                chip.set_key_state(*v, false);
-            }
-        }
-
-        // Switch modes
-        if is_key_pressed(KeyCode::Key7) {
-            chip.set_quirks_mode(core::quirks::Quirks::new(core::quirks::Mode::Chip8Modern));
-        }
-        if is_key_pressed(KeyCode::Key8) {
-            chip.set_quirks_mode(core::quirks::Quirks::new(
-                core::quirks::Mode::SuperChipModern,
-            ));
-        }
-        if is_key_pressed(KeyCode::Key9) {
-            chip.set_quirks_mode(core::quirks::Quirks::new(
-                core::quirks::Mode::SuperChipLegacy,
-            ));
-        }
-        if is_key_pressed(KeyCode::Key0) {
-            chip.set_quirks_mode(core::quirks::Quirks::new(core::quirks::Mode::XoChip));
-        }
-
-        if is_key_pressed(KeyCode::Minus) {
-            config.ticks_per_frame -= 100;
-            config.ticks_per_frame = config.ticks_per_frame.clamp(100, 20000);
-        }
-        if is_key_pressed(KeyCode::Equal) {
-            config.ticks_per_frame += 100;
-            config.ticks_per_frame = config.ticks_per_frame.clamp(100, 20000);
-        }
-
-        // Toggle debug output
-        if is_key_pressed(KeyCode::I) {
-            config.debug_draw = !config.debug_draw;
-        }
-        // Pause / Unpause updates
-        if is_key_pressed(KeyCode::P) {
-            config.pause_emulation = !config.pause_emulation;
-        }
-
-        // TODO: Remove this
-        // BLOW UP THE CORE - just for fun
-        if is_key_pressed(KeyCode::F5) {
-            chip.chaos();
-        }
-
-        if !config.pause_emulation {
-            // Run processor
-            for _ in 0..config.ticks_per_frame {
-                if let Err(e) = chip.step() {
-                    println!("Error: {}", e);
-                    show_error(e).await;
-                }
-            }
-
-            let (st, _) = chip.tick_timers(); // Tick timers at 60Hz
-
-            // Handle audio
-            #[cfg(feature = "xo-audio")]
-            {
-                let sw_handle = Arc::clone(&square_wave);
-                if st > 0 {
-                    if let Mode::XoChip = chip.quirks_mode().mode {
-                        if let Some(snd) = chip.get_sound() {
-                            sw_handle
-                                .lock()
-                                .unwrap()
-                                .set_pattern(snd.pitch, snd.pattern.clone());
-                        };
-                    } else {
-                        sw_handle.lock().unwrap().set_pattern(
-                            128,
-                            vec![
-                                0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0x00,
-                                0x00, 0xFF, 0xFF, 0x00, 0x00,
-                            ],
-                        );
-                    }
-                } else {
-                    sw_handle.lock().unwrap().set_pattern(64, vec![0u8; 16]);
-                }
-            }
-        }
         drop(config);
+
         next_frame().await;
     }
 }
 
-async fn show_error(err: core::error::CoreError) {
+fn show_error(err: &CoreError) {
     println!("show_error - Error: {:#?}", err);
     let debug_x = 30.0;
     let debug_y = 70.0;
@@ -412,7 +502,6 @@ async fn show_error(err: core::error::CoreError) {
     let err_box_color2 = Color::from_rgba(177, 60, 57, 255);
     let text_color = Color::from_rgba(255, 255, 255, 255);
 
-    loop {
         draw_rectangle(
             16.0,
             16.0,
@@ -438,9 +527,16 @@ async fn show_error(err: core::error::CoreError) {
                 text_color,
             );
         });
-        if is_key_pressed(KeyCode::Enter) {
-            break;
-        }
-        next_frame().await;
+}
+
+fn get_ipf_increment(val: u32) -> u32 {
+    match val {
+        0..=9 => 1,
+        10..=99 => 10,
+        100..=999 => 50,
+        1000..=9999 => 500,
+        10_000..=99_999 => 5_000,
+        100_000..=999_999 => 50_000,
+        _ => 100,
     }
 }
