@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default=["xo-audio"]
-xo-audio = []
+default=["chip-audio"]
+chip-audio = []
 
 [profile.release]
 lto = true
