@@ -290,7 +290,7 @@ async fn main() {
                 draw_text(&str, x, y, size, Color::new(1.0, 1.0, 1.0, alpha));
             }
             EmuState::Load => {
-                #[cfg(feature = "xo-audio")]
+                #[cfg(feature = "chip-audio")]
                 if audio_device.is_none() {
                     let params = OutputDeviceParameters {
                         channels_count: 1,
@@ -380,7 +380,7 @@ async fn main() {
                     }
                     let (st, _) = chip.tick_timers(); // Tick timers at 60Hz
                                                       // Handle audio
-                    #[cfg(feature = "xo-audio")]
+                    #[cfg(feature = "chip-audio")]
                     {
                         let sw_handle = Arc::clone(&global_square_wave);
                         if st > 0 {
