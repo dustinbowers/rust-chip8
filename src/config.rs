@@ -23,7 +23,7 @@ impl Config {
             pause_emulation: false,
             debug_draw: true,
             core_mode: "xo-chip".to_string(),
-            ticks_per_frame: 200000,
+            ticks_per_frame: 100000,
             audio_level: 0.1,
             color_map: vec![
                 rgb_to_int(0.0, 0.0, 0.0),
@@ -48,5 +48,11 @@ impl Config {
                 
            ],
         }
+    }
+
+    pub fn update(&mut self, other: Self) {
+        *self = Self {
+            ..other
+        };
     }
 }
