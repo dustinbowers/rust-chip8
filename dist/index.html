@@ -86,12 +86,6 @@
                 set_wasm(wasm_exports)
                 CONFIG  = send_new_config_to_js();
                 CONFIG.ticks_per_frame = 200000;
-                // CONFIG.color_map = [
-                //     hex_to_int("#111111"),
-                //     hex_to_int("#00ff00"),
-                //     hex_to_int("#FF0000"),
-                //     hex_to_int("#112244"),
-                // ]
                 CONFIG.color_map = [
                     hex_to_int("#000000"),
                     hex_to_int("#ffffff"),
@@ -114,11 +108,11 @@
                 console.log(CONFIG);
                 // CONFIG.core_mode = "superchip";
                 CONFIG.core_mode = "xochip";
+                reset_core();
             },
             version: "0.0.1",
             name: "wbg",
         });
-
         play_rom(rom_url);
     }
     window.run = function() {
@@ -127,6 +121,7 @@
         document.getElementById("glcanvas").focus();
         impl_run();
     }
+    // window.onload = () => window.run();
 </script>
 <div id="run-container">
     <button onclick="run()">Run Game</button>
