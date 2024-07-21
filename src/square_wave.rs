@@ -9,10 +9,7 @@ pub struct SquareWave {
 impl SquareWave {
     pub fn new() -> Self {
         Self {
-            bit_pattern: BitVec::<u8>::from_vec(vec![
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-                0xff, 0xff,
-            ]),
+            bit_pattern: BitVec::<u8>::from_vec(vec![0u8; 16]),
             phase_inc: Self::pitch_to_ratio(128),
             phase_bit: 0.0,
         }
