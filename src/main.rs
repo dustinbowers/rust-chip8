@@ -1,17 +1,13 @@
 use macroquad::prelude::*;
 use once_cell::sync::Lazy;
 use std::sync::{Arc, Mutex, RwLock};
-use tinyaudio::{run_output_device, BaseAudioOutputDevice, OutputDeviceParameters};
+use tinyaudio::{run_output_device, OutputDeviceParameters};
 
 #[cfg(not(target_arch = "wasm32"))]
 use {
     std::io::Read,
     std::{fs, io},
 };
-
-#[cfg(feature = "wee_alloc")]
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::JsValue;
@@ -154,30 +150,28 @@ pub fn send_new_config_to_js() -> JsValue {
 #[wasm_bindgen]
 pub fn reset_core() {
     let mut state = STATE.write().unwrap();
-    *state = EmuState::LOAD;
+    *state = EmuState::Load;
 }
 
 #[derive(Clone, Copy, PartialEq)]
 enum EmuState {
-    PRELOAD,
-    LOAD,
-    RUN,
-    ERROR,
-    EXIT,
+    Preload,
+    Load,
+    Run,
+    Error,
 }
 
-static STATE: Lazy<Arc<RwLock<EmuState>>> = Lazy::new(|| Arc::new(RwLock::new(EmuState::PRELOAD)));
+static STATE: Lazy<Arc<RwLock<EmuState>>> = Lazy::new(|| Arc::new(RwLock::new(EmuState::Preload)));
 
 #[macroquad::main(window_conf)]
 async fn main() {
     let global_square_wave = Arc::new(Mutex::new(SquareWave::new()));
-    let mut audio_volume = 0.1f32;
-    let device: Box<dyn BaseAudioOutputDevice>;
+    let audio_volume = 0.1f32;
 
     let mut chip: Chip8 = Chip8::new();
     let mut core_error: Option<CoreError> = None;
     let global_config: Arc<Mutex<Config>> = Arc::new(Mutex::new(Config::new()));
-    let mut color_map: Vec<Color> = vec![];
+    let mut color_map: Vec<Color>;
     let mut rom: Vec<u8>;
 
     #[cfg(feature = "xo-audio")]
@@ -190,7 +184,7 @@ async fn main() {
 
         let sw_handle = Arc::clone(&global_square_wave);
         let audio_config_handle = Arc::clone(&global_config);
-        device = run_output_device(params, {
+        let device = run_output_device(params, {
             move |data| {
                 let c = audio_config_handle.lock().unwrap();
                 let paused = c.pause_emulation;
@@ -220,12 +214,14 @@ async fn main() {
             }
         })
         .unwrap();
+
+        Box::leak(device);
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     {
         let mut s = STATE.write().unwrap();
-        *s = EmuState::LOAD;
+        *s = EmuState::Load;
         drop(s);
     }
 
@@ -324,14 +320,14 @@ async fn main() {
             *state_read
         };
         match current_state {
-            EmuState::PRELOAD => {
+            EmuState::Preload => {
                 let size = 48.0;
                 let str = "Ready...";
                 let x = WINDOW_WIDTH as f32 / 2.0 - (size / 2.0 * str.len() as f32 / 2.0);
                 let y = WINDOW_HEIGHT as f32 / 2.0;
                 draw_text(str, x, y, size, WHITE);
             }
-            EmuState::LOAD => {
+            EmuState::Load => {
                 chip.reset();
                 rom = fetch_rom_bytes();
                 let new_config = fetch_config();
@@ -361,10 +357,10 @@ async fn main() {
                 }
 
                 let mut state_writer = STATE.write().unwrap();
-                *state_writer = EmuState::RUN;
+                *state_writer = EmuState::Run;
                 drop(config_handle);
             }
-            EmuState::RUN => {
+            EmuState::Run => {
                 // Run processor
                 let config_handle = Arc::clone(&global_config);
                 let config = config_handle.lock().unwrap();
@@ -375,7 +371,7 @@ async fn main() {
                             println!("Error: {}", e);
                             core_error = Some(e);
                             let mut state_writer = STATE.write().unwrap();
-                            *state_writer = EmuState::ERROR;
+                            *state_writer = EmuState::Error;
                         }
                     }
                     let (st, _) = chip.tick_timers(); // Tick timers at 60Hz
@@ -406,14 +402,11 @@ async fn main() {
                     }
                 }
             }
-            EmuState::ERROR => {
+            EmuState::Error => {
                 if let Some(err) = &core_error {
                     show_error(err);
                 }
                 if is_key_pressed(KeyCode::Enter) {}
-            }
-            EmuState::EXIT => {
-                return;
             }
         };
         let config = global_config.lock().unwrap();
