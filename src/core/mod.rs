@@ -92,7 +92,11 @@ impl Chip8 {
             bit_plane_selector: 1,
         };
         c.load_font();
-        return c;
+        c
+    }
+    
+    pub fn reset(&mut self) {
+        *self = Chip8::new();
     }
 
     // TODO: remove this
