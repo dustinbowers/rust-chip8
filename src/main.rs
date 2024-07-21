@@ -1,7 +1,9 @@
+use std::f64::consts::PI;
 use macroquad::prelude::*;
 use once_cell::sync::Lazy;
 use std::sync::{Arc, Mutex, RwLock};
-use tinyaudio::{run_output_device, OutputDeviceParameters};
+use js_sys::Math::sin;
+use tinyaudio::{run_output_device, OutputDeviceParameters, BaseAudioOutputDevice};
 
 #[cfg(not(target_arch = "wasm32"))]
 use {
@@ -174,49 +176,8 @@ async fn main() {
     let mut color_map: Vec<Color>;
     let mut rom: Vec<u8>;
 
-    #[cfg(feature = "xo-audio")]
-    {
-        let params = OutputDeviceParameters {
-            channels_count: 1,
-            sample_rate: 44100,
-            channel_sample_count: 735,
-        };
+    let mut audio_device: Option<Box<dyn BaseAudioOutputDevice>> = None;
 
-        let sw_handle = Arc::clone(&global_square_wave);
-        let audio_config_handle = Arc::clone(&global_config);
-        let device = run_output_device(params, {
-            move |data| {
-                let c = audio_config_handle.lock().unwrap();
-                let paused = c.pause_emulation;
-                drop(c);
-                if paused {
-                    for d in data {
-                        *d = 0.0;
-                    }
-                    return;
-                }
-
-                for samples in data.chunks_mut(params.channels_count) {
-                    for sample in samples {
-                        let mut sw = sw_handle.lock().unwrap();
-                        *sample = if sw.bit_pattern[(sw.phase_bit + 0.5) as usize] {
-                            audio_volume
-                        } else {
-                            -audio_volume
-                        };
-                        sw.phase_bit += sw.phase_inc;
-                        if (sw.phase_bit + 0.5) as usize >= 128 {
-                            sw.phase_bit = 0.0;
-                        }
-                    }
-                }
-                // }
-            }
-        })
-        .unwrap();
-
-        Box::leak(device);
-    }
 
     #[cfg(not(target_arch = "wasm32"))]
     {
@@ -321,13 +282,56 @@ async fn main() {
         };
         match current_state {
             EmuState::Preload => {
+                let alpha = sin(last_frame_time % PI) as f32;
                 let size = 48.0;
-                let str = "Ready...";
+                let str = "Ready";
                 let x = WINDOW_WIDTH as f32 / 2.0 - (size / 2.0 * str.len() as f32 / 2.0);
                 let y = WINDOW_HEIGHT as f32 / 2.0;
-                draw_text(str, x, y, size, WHITE);
+                draw_text(&str, x, y, size, Color::new(1.0, 1.0, 1.0, alpha));
             }
             EmuState::Load => {
+                #[cfg(feature = "xo-audio")]
+                if audio_device.is_none() {
+                    let params = OutputDeviceParameters {
+                        channels_count: 1,
+                        sample_rate: 44100,
+                        channel_sample_count: 735,
+                    };
+
+                    let sw_handle = Arc::clone(&global_square_wave);
+                    let audio_config_handle = Arc::clone(&global_config);
+                    let device = run_output_device(params, {
+                        move |data| {
+                            let c = audio_config_handle.lock().unwrap();
+                            let paused = c.pause_emulation;
+                            drop(c);
+                            if paused {
+                                for d in data {
+                                    *d = 0.0;
+                                }
+                                return;
+                            }
+
+                            for samples in data.chunks_mut(params.channels_count) {
+                                for sample in samples {
+                                    let mut sw = sw_handle.lock().unwrap();
+                                    *sample = if sw.bit_pattern[(sw.phase_bit + 0.5) as usize] {
+                                        audio_volume
+                                    } else {
+                                        -audio_volume
+                                    };
+                                    sw.phase_bit += sw.phase_inc;
+                                    if (sw.phase_bit + 0.5) as usize >= 128 {
+                                        sw.phase_bit = 0.0;
+                                    }
+                                }
+                            }
+                        }
+                    })
+                    .unwrap();
+                    audio_device = Some(device);
+                }
+
                 chip.reset();
                 rom = fetch_rom_bytes();
                 let new_config = fetch_config();
@@ -427,6 +431,7 @@ async fn main() {
         }
 
         // Draw debug if enabled
+        let now = get_time();
         if config.debug_draw {
             let debug_x: f32 = 12.0;
             let debug_y: f32 = 0.0;
@@ -455,7 +460,6 @@ async fn main() {
                 RED,
             );
 
-            let now = get_time();
             let frame_delta = now - last_frame_time;
             let fps = 1.0 / frame_delta;
             draw_text(
@@ -472,8 +476,8 @@ async fn main() {
                 20.0,
                 RED,
             );
-            last_frame_time = now;
         }
+        last_frame_time = now;
         drop(config);
 
         next_frame().await;
