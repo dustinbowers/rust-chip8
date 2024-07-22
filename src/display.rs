@@ -6,6 +6,7 @@ use js_sys::Math::sin;
 use macroquad::color::{Color, BLACK, RED, VIOLET};
 use macroquad::prelude::{draw_rectangle, draw_text};
 use std::f64::consts::PI;
+use crate::color_map::ColorMap;
 
 pub fn draw_splash(last_frame_time: f64) {
     let alpha = sin(last_frame_time % PI) as f32;
@@ -16,19 +17,20 @@ pub fn draw_splash(last_frame_time: f64) {
     draw_text(str, x, y, size, Color::new(1.0, 1.0, 1.0, alpha));
 }
 
-pub fn draw_screen(screen: &Screen, color_map: &[Color]) {
+pub fn draw_screen(screen: &Screen, color_map: &ColorMap) {
     for (ri, r) in screen.iter().enumerate() {
         for (ci, c) in r.iter().enumerate() {
-            let mut color_ind: u8 = 0;
+            let mut color_ind: usize = 0;
             for (i, c) in c.iter().enumerate() {
                 if *c {
                     color_ind |= 1 << i;
                 }
             }
-            let color = color_map[color_ind as usize];
+            // let color = color_map[color_ind as usize];
+            let color = color_map.get_color(color_ind);
             let x = ci as f32 * PIXEL_WIDTH;
             let y = ri as f32 * PIXEL_HEIGHT;
-            draw_rectangle(x, y, PIXEL_WIDTH, PIXEL_HEIGHT, color);
+            draw_rectangle(x, y, PIXEL_WIDTH, PIXEL_HEIGHT, *color);
         }
     }
 }
