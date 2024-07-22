@@ -65,8 +65,8 @@ pub fn draw_basic_debug_info(quirks: &Quirks, ticks_per_frame: u32, frame_delta:
     );
     draw_text(
         &format!("Mode: {}", quirks.mode_label),
-        WINDOW_WIDTH as f32 - 200.0,
-        WINDOW_HEIGHT as f32 - 4.0,
+        12.0,
+        12.0,
         20.0,
         RED,
     );

@@ -16,6 +16,7 @@ mod audio;
 mod config;
 mod core;
 mod display;
+mod util;
 
 use crate::config::Config;
 use crate::core::error::CoreError;
@@ -229,14 +230,14 @@ async fn main() {
 
         if is_key_pressed(KeyCode::Minus) {
             let mut config = config_handle.lock().unwrap();
-            let increment = get_ipf_increment(config.ticks_per_frame);
+            let increment = util::get_ipf_increment(config.ticks_per_frame);
             config.ticks_per_frame -= increment;
             config.ticks_per_frame = config.ticks_per_frame.clamp(1, 200000);
         }
 
         if is_key_pressed(KeyCode::Equal) {
             let mut config = config_handle.lock().unwrap();
-            let increment = get_ipf_increment(config.ticks_per_frame);
+            let increment = util::get_ipf_increment(config.ticks_per_frame);
             config.ticks_per_frame += increment;
             config.ticks_per_frame = config.ticks_per_frame.clamp(1, 200000);
         }
@@ -386,17 +387,5 @@ async fn main() {
         last_frame_time = now;
         drop(config);
         next_frame().await;
-    }
-}
-
-fn get_ipf_increment(val: u32) -> u32 {
-    match val {
-        0..=9 => 1,
-        10..=99 => 10,
-        100..=999 => 50,
-        1000..=9999 => 500,
-        10_000..=99_999 => 5_000,
-        100_000..=999_999 => 50_000,
-        _ => 100,
     }
 }
