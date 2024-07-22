@@ -400,6 +400,7 @@ async fn main() {
         if config.debug_draw > 0 {
             let frame_delta = now - last_frame_time;
             let fps = 1.0 / frame_delta;
+            let quirks = chip.quirks_mode();
             draw_text(
                 &format!("FPS: {:?}", fps as u32),
                 WINDOW_WIDTH as f32 - 100.0,
@@ -408,9 +409,16 @@ async fn main() {
                 RED,
             );
             draw_text(
-                &format!("IPF: {:?}", config.ticks_per_frame as u32),
+                &format!("IPF: {:?}", config.ticks_per_frame),
                 WINDOW_WIDTH as f32 - 100.0,
                 24.0,
+                20.0,
+                RED,
+            );
+            draw_text(
+                &format!("Mode: {}", quirks.mode_label),
+                WINDOW_WIDTH as f32 - 200.0,
+                WINDOW_HEIGHT as f32 - 4.0,
                 20.0,
                 RED,
             );
@@ -434,20 +442,10 @@ async fn main() {
                         VIOLET,
                     );
                 });
-
-            let quirks = chip.quirks_mode();
-            let s = format!("Mode: {}", quirks.mode_label);
-            draw_text(
-                &s,
-                WINDOW_WIDTH as f32 - 200.0,
-                WINDOW_HEIGHT as f32 - 4.0,
-                20.0,
-                RED,
-            );
         }
+        
         last_frame_time = now;
         drop(config);
-
         next_frame().await;
     }
 }
