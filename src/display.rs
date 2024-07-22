@@ -47,6 +47,7 @@ pub fn draw_pause() {
     );
     draw_text(pause_str, x, y, pause_size, BLACK);
 }
+
 pub fn draw_basic_debug_info(quirks: &Quirks, ticks_per_frame: u32, frame_delta: f64) {
     let fps = 1.0 / frame_delta;
     draw_text(
