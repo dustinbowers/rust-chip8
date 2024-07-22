@@ -1,7 +1,5 @@
-use js_sys::Math::sin;
 use macroquad::prelude::*;
 use once_cell::sync::Lazy;
-use std::f64::consts::PI;
 use std::sync::{Arc, Mutex, RwLock};
 use tinyaudio::{run_output_device, BaseAudioOutputDevice, OutputDeviceParameters};
 
@@ -16,6 +14,7 @@ use wasm_bindgen::JsValue;
 
 mod config;
 mod core;
+mod display;
 mod square_wave;
 
 use crate::config::Config;
@@ -83,8 +82,8 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
     // include_bytes!("../roms/xo-chip/anEveningToDieFor.xo8").to_vec()
     // include_bytes!("../roms/xo-chip/t8nks.xo8").to_vec()
     // include_bytes!("../roms/xo-chip/chip8e-test.c8e").to_vec()
-    include_bytes!("../roms/xo-chip/superneatboy.ch8").to_vec()
-    // include_bytes!("../roms/xo-chip/nyancat.ch8").to_vec()
+    // include_bytes!("../roms/xo-chip/superneatboy.ch8").to_vec()
+    include_bytes!("../roms/xo-chip/nyancat.ch8").to_vec()
     // include_bytes!("../roms/xo-chip/NYAN.xo8").to_vec()
     // include_bytes!("../roms/xo-chip/expedition.ch8").to_vec()
     // include_bytes!("../roms/xo-chip/alien-inv8sion.ch8").to_vec()
@@ -263,20 +262,8 @@ async fn main() {
 
         // Draw the screen
         chip.v_blank();
-        for (ri, r) in chip.get_screen().lock().unwrap().iter().enumerate() {
-            for (ci, c) in r.iter().enumerate() {
-                let mut color_ind: u8 = 0;
-                for (i, c) in c.iter().enumerate() {
-                    if *c {
-                        color_ind |= 1 << i;
-                    }
-                }
-                let color = color_map[color_ind as usize];
-                let x = ci as f32 * PIXEL_WIDTH;
-                let y = ri as f32 * PIXEL_HEIGHT;
-                draw_rectangle(x, y, PIXEL_WIDTH, PIXEL_HEIGHT, color);
-            }
-        }
+
+        display::draw_screen(&(chip.get_screen().lock().unwrap()), &color_map);
 
         let current_state = {
             let state_read = STATE.read().unwrap();
@@ -284,12 +271,7 @@ async fn main() {
         };
         match current_state {
             EmuState::Preload => {
-                let alpha = sin(last_frame_time % PI) as f32;
-                let size = 48.0;
-                let str = "Ready";
-                let x = WINDOW_WIDTH as f32 / 2.0 - (size / 2.0 * str.len() as f32 / 2.0);
-                let y = WINDOW_HEIGHT as f32 / 2.0;
-                draw_text(&str, x, y, size, Color::new(1.0, 1.0, 1.0, alpha));
+                display::draw_splash(last_frame_time);
             }
             EmuState::Load => {
                 #[cfg(feature = "chip-audio")]
@@ -337,7 +319,7 @@ async fn main() {
                 if !config.pause_emulation {
                     for _ in 0..config.ticks_per_frame {
                         if let Err(e) = chip.step() {
-                            println!("Error: {}", e);
+                            println!("Error: {:#?}", e);
                             core_error = Some(e);
                             let mut state_writer = STATE.write().unwrap();
                             *state_writer = EmuState::Error;
@@ -373,117 +355,38 @@ async fn main() {
             }
             EmuState::Error => {
                 if let Some(err) = &core_error {
-                    show_error(err);
+                    display::show_error(err);
                 }
-                if is_key_pressed(KeyCode::Enter) {}
+                if is_key_pressed(KeyCode::Enter) {
+                    let mut state_writer = STATE.write().unwrap();
+                    *state_writer = EmuState::Run;
+                    core_error = None;
+                }
             }
         };
         let config = global_config.lock().unwrap();
 
         if config.pause_emulation {
-            let pause_size = 48.0;
-            let pause_str = "[PAUSED]";
-            let x = WINDOW_WIDTH as f32 / 2.0 - (pause_size / 2.0 * pause_str.len() as f32 / 2.0);
-            let y = WINDOW_HEIGHT as f32 / 2.0;
-            draw_rectangle(
-                x,
-                y - (pause_size * 0.75),
-                pause_size * (pause_str.len() - 1) as f32 / 2.0,
-                pause_size,
-                RED,
-            );
-            draw_text(pause_str, x, y, pause_size, BLACK);
+            display::draw_pause();
         }
 
-        // Draw basic debug info 
         let now = get_time();
         if config.debug_draw > 0 {
-            let frame_delta = now - last_frame_time;
-            let fps = 1.0 / frame_delta;
-            let quirks = chip.quirks_mode();
-            draw_text(
-                &format!("FPS: {:?}", fps as u32),
-                WINDOW_WIDTH as f32 - 100.0,
-                12.0,
-                20.0,
-                RED,
-            );
-            draw_text(
-                &format!("IPF: {:?}", config.ticks_per_frame),
-                WINDOW_WIDTH as f32 - 100.0,
-                24.0,
-                20.0,
-                RED,
-            );
-            draw_text(
-                &format!("Mode: {}", quirks.mode_label),
-                WINDOW_WIDTH as f32 - 200.0,
-                WINDOW_HEIGHT as f32 - 4.0,
-                20.0,
-                RED,
+            display::draw_basic_debug_info(
+                chip.quirks_mode(),
+                config.ticks_per_frame,
+                now - last_frame_time,
             );
         }
 
-        // Draw in-depth debug info
         if config.debug_draw > 1 {
-            let debug_x: f32 = 12.0;
-            let debug_y: f32 = 0.0;
-            let font_size: f32 = 20.0;
-
-            chip.get_state()
-                .split("\n")
-                .enumerate()
-                .for_each(|(ind, line)| {
-                    draw_text(
-                        line,
-                        debug_x,
-                        debug_y + ((ind as f32 + 1.0) * font_size),
-                        font_size,
-                        VIOLET,
-                    );
-                });
+            display::draw_emu_state(&chip.get_state());
         }
-        
+
         last_frame_time = now;
         drop(config);
         next_frame().await;
     }
-}
-
-fn show_error(err: &CoreError) {
-    println!("show_error - Error: {:#?}", err);
-    let debug_x = 30.0;
-    let debug_y = 70.0;
-    let font_size = 24.0;
-    let err_box_color = Color::from_rgba(216, 80, 77, 255);
-    let err_box_color2 = Color::from_rgba(177, 60, 57, 255);
-    let text_color = Color::from_rgba(255, 255, 255, 255);
-
-    draw_rectangle(
-        16.0,
-        16.0,
-        (WINDOW_WIDTH - 32) as f32,
-        (WINDOW_HEIGHT - 32) as f32,
-        err_box_color,
-    );
-    draw_rectangle(24.0, 24.0, (WINDOW_WIDTH - 48) as f32, 42.0, err_box_color2);
-    draw_text(
-        "ERROR",
-        WINDOW_WIDTH as f32 / 2.0 - 36.0,
-        54.0,
-        32.0,
-        text_color,
-    );
-    let err_text = format!("Type: {}\nInfo: {}", err.error_type, err.info);
-    err_text.split("\n").enumerate().for_each(|(ind, line)| {
-        draw_text(
-            line,
-            debug_x,
-            debug_y + ((ind as f32 + 1.0) * font_size),
-            font_size,
-            text_color,
-        );
-    });
 }
 
 fn get_ipf_increment(val: u32) -> u32 {
