@@ -19,12 +19,14 @@ mod config;
 mod core;
 mod display;
 mod util;
+mod color_map;
 
 use crate::config::Config;
 use crate::core::error::CoreError;
 use crate::core::quirks::Mode;
 use core::Chip8;
 use core::{DISPLAY_COLS, DISPLAY_ROWS};
+use crate::color_map::ColorMap;
 
 const WINDOW_HEIGHT: i32 = 256;
 const WINDOW_WIDTH: i32 = 512;
@@ -149,7 +151,7 @@ async fn main() {
     let mut chip: Chip8 = Chip8::new();
     let mut core_error: Option<CoreError> = None;
     let global_config: Arc<Mutex<Config>> = Arc::new(Mutex::new(Config::new()));
-    let mut color_map: Vec<Color>;
+    let mut color_map = ColorMap::new();
     let mut rom: Vec<u8>;
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -158,20 +160,6 @@ async fn main() {
         *s = EmuState::Load;
         drop(s);
     }
-
-    // TODO: Potentially move color_map into this its own struct?
-    color_map = global_config
-        .lock()
-        .unwrap()
-        .color_map
-        .iter()
-        .map(|c| {
-            let r = ((c >> 16) & 0xFFu32) as f32 / 255.0;
-            let g = ((c >> 8) & 0xFFu32) as f32 / 255.0;
-            let b = ((c) & 0xFFu32) as f32 / 255.0;
-            Color::new(r, g, b, 1.0)
-        })
-        .collect();
 
     let key_map: &[(Vec<KeyCode>, core::types::Key)] = &[
         (vec![KeyCode::Key1], core::types::Key::Key1),
@@ -280,16 +268,7 @@ async fn main() {
                 config_handle.update(new_config);
                 chip.set_core_mode(&config_handle.core_mode);
 
-                color_map = config_handle
-                    .color_map
-                    .iter()
-                    .map(|c| {
-                        let r = ((c >> 16) & 0xFFu32) as f32 / 255.0;
-                        let g = ((c >> 8) & 0xFFu32) as f32 / 255.0;
-                        let b = ((c) & 0xFFu32) as f32 / 255.0;
-                        Color::new(r, g, b, 1.0)
-                    })
-                    .collect();
+                color_map.set_int_color_map(&config_handle.color_map);
 
                 let loaded = chip.load_rom(rom, 0x200);
                 match loaded {
