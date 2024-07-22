@@ -21,7 +21,7 @@ impl Config {
     pub fn new() -> Self {
         Self {
             pause_emulation: false,
-            debug_draw: 0,
+            debug_draw: 1,
             core_mode: "xo-chip".to_string(),
             ticks_per_frame: 100000,
             audio_level: 0.1,
