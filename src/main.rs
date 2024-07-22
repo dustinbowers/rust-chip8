@@ -1,7 +1,7 @@
 use macroquad::prelude::*;
 use once_cell::sync::Lazy;
 use std::sync::{Arc, Mutex, RwLock};
-use tinyaudio::{run_output_device, BaseAudioOutputDevice, OutputDeviceParameters};
+use tinyaudio::BaseAudioOutputDevice;
 
 #[cfg(not(target_arch = "wasm32"))]
 use {
@@ -12,15 +12,14 @@ use {
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::JsValue;
 
+mod audio;
 mod config;
 mod core;
 mod display;
-mod square_wave;
 
 use crate::config::Config;
 use crate::core::error::CoreError;
 use crate::core::quirks::Mode;
-use crate::square_wave::SquareWave;
 use core::Chip8;
 use core::{DISPLAY_COLS, DISPLAY_ROWS};
 
@@ -82,8 +81,8 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
     // include_bytes!("../roms/xo-chip/anEveningToDieFor.xo8").to_vec()
     // include_bytes!("../roms/xo-chip/t8nks.xo8").to_vec()
     // include_bytes!("../roms/xo-chip/chip8e-test.c8e").to_vec()
-    // include_bytes!("../roms/xo-chip/superneatboy.ch8").to_vec()
-    include_bytes!("../roms/xo-chip/nyancat.ch8").to_vec()
+    include_bytes!("../roms/xo-chip/superneatboy.ch8").to_vec()
+    // include_bytes!("../roms/xo-chip/nyancat.ch8").to_vec()
     // include_bytes!("../roms/xo-chip/NYAN.xo8").to_vec()
     // include_bytes!("../roms/xo-chip/expedition.ch8").to_vec()
     // include_bytes!("../roms/xo-chip/alien-inv8sion.ch8").to_vec()
@@ -147,7 +146,7 @@ static STATE: Lazy<Arc<RwLock<EmuState>>> = Lazy::new(|| Arc::new(RwLock::new(Em
 
 #[macroquad::main(window_conf)]
 async fn main() {
-    let global_square_wave = Arc::new(Mutex::new(SquareWave::new()));
+    let global_square_wave = Arc::new(Mutex::new(audio::SquareWave::new()));
     let audio_volume = 0.1f32;
 
     let mut chip: Chip8 = Chip8::new();
@@ -276,7 +275,8 @@ async fn main() {
             EmuState::Load => {
                 #[cfg(feature = "chip-audio")]
                 if audio_device.is_none() {
-                    audio_device = init_audio(&global_square_wave, &global_config, audio_volume);
+                    audio_device =
+                        audio::init_audio(&global_square_wave, &global_config, audio_volume);
                 }
 
                 chip.reset();
@@ -398,54 +398,5 @@ fn get_ipf_increment(val: u32) -> u32 {
         10_000..=99_999 => 5_000,
         100_000..=999_999 => 50_000,
         _ => 100,
-    }
-}
-
-#[cfg(feature = "chip-audio")]
-fn init_audio(
-    global_square_wave: &Arc<Mutex<SquareWave>>,
-    global_config: &Arc<Mutex<Config>>,
-    audio_volume: f32,
-) -> Option<Box<dyn BaseAudioOutputDevice>> {
-    let sw_handle = Arc::clone(&global_square_wave);
-    let audio_config_handle = Arc::clone(&global_config);
-    let params = OutputDeviceParameters {
-        channels_count: 1,
-        sample_rate: 44100,
-        channel_sample_count: 735,
-    };
-
-    let device = run_output_device(params, {
-        move |data| {
-            let c = audio_config_handle.lock().unwrap();
-            let paused = c.pause_emulation;
-            drop(c);
-            if paused {
-                for d in data {
-                    *d = 0.0;
-                }
-                return;
-            }
-
-            for samples in data.chunks_mut(params.channels_count) {
-                for sample in samples {
-                    let mut sw = sw_handle.lock().unwrap();
-                    *sample = if sw.bit_pattern[(sw.phase_bit + 0.5) as usize] {
-                        audio_volume
-                    } else {
-                        -audio_volume
-                    };
-                    sw.phase_bit += sw.phase_inc;
-                    if (sw.phase_bit + 0.5) as usize >= 128 {
-                        sw.phase_bit = 0.0;
-                    }
-                }
-            }
-        }
-    });
-
-    match device {
-        Ok(d) => Some(d),
-        Err(_) => None,
     }
 }
