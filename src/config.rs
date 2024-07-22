@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize)]
 pub struct Config {
     pub pause_emulation: bool,
-    pub debug_draw: bool,
+    pub debug_draw: u8, 
     pub core_mode: String,
     pub ticks_per_frame: u32,
     pub color_map: Vec<u32>,
@@ -21,7 +21,7 @@ impl Config {
     pub fn new() -> Self {
         Self {
             pause_emulation: false,
-            debug_draw: false,
+            debug_draw: 0,
             core_mode: "xo-chip".to_string(),
             ticks_per_frame: 100000,
             audio_level: 0.1,

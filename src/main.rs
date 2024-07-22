@@ -1,9 +1,9 @@
-use std::f64::consts::PI;
+use js_sys::Math::sin;
 use macroquad::prelude::*;
 use once_cell::sync::Lazy;
+use std::f64::consts::PI;
 use std::sync::{Arc, Mutex, RwLock};
-use js_sys::Math::sin;
-use tinyaudio::{run_output_device, OutputDeviceParameters, BaseAudioOutputDevice};
+use tinyaudio::{run_output_device, BaseAudioOutputDevice, OutputDeviceParameters};
 
 #[cfg(not(target_arch = "wasm32"))]
 use {
@@ -83,8 +83,8 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
     // include_bytes!("../roms/xo-chip/anEveningToDieFor.xo8").to_vec()
     // include_bytes!("../roms/xo-chip/t8nks.xo8").to_vec()
     // include_bytes!("../roms/xo-chip/chip8e-test.c8e").to_vec()
-    // include_bytes!("../roms/xo-chip/superneatboy.ch8").to_vec()
-    include_bytes!("../roms/xo-chip/nyancat.ch8").to_vec()
+    include_bytes!("../roms/xo-chip/superneatboy.ch8").to_vec()
+    // include_bytes!("../roms/xo-chip/nyancat.ch8").to_vec()
     // include_bytes!("../roms/xo-chip/NYAN.xo8").to_vec()
     // include_bytes!("../roms/xo-chip/expedition.ch8").to_vec()
     // include_bytes!("../roms/xo-chip/alien-inv8sion.ch8").to_vec()
@@ -124,25 +124,6 @@ fn load_rom_file(filename: &str) -> io::Result<Vec<u8>> {
     Ok(buffer)
 }
 
-const KEY_MAP: &[(KeyCode, core::types::Key)] = &[
-    (KeyCode::Key1, core::types::Key::Key1),
-    (KeyCode::Key2, core::types::Key::Key2),
-    (KeyCode::Key3, core::types::Key::Key3),
-    (KeyCode::Key4, core::types::Key::C),
-    (KeyCode::Q, core::types::Key::Key4),
-    (KeyCode::W, core::types::Key::Key5),
-    (KeyCode::E, core::types::Key::Key6),
-    (KeyCode::R, core::types::Key::D),
-    (KeyCode::A, core::types::Key::Key7),
-    (KeyCode::S, core::types::Key::Key8),
-    (KeyCode::D, core::types::Key::Key9),
-    (KeyCode::F, core::types::Key::E),
-    (KeyCode::Z, core::types::Key::A),
-    (KeyCode::X, core::types::Key::Key0),
-    (KeyCode::C, core::types::Key::B),
-    (KeyCode::V, core::types::Key::F),
-];
-
 #[wasm_bindgen]
 pub fn send_new_config_to_js() -> JsValue {
     let new_conf = Config::new();
@@ -178,7 +159,6 @@ async fn main() {
 
     let mut audio_device: Option<Box<dyn BaseAudioOutputDevice>> = None;
 
-
     #[cfg(not(target_arch = "wasm32"))]
     {
         let mut s = STATE.write().unwrap();
@@ -200,18 +180,39 @@ async fn main() {
         })
         .collect();
 
+    let key_map: &[(Vec<KeyCode>, core::types::Key)] = &[
+        (vec![KeyCode::Key1], core::types::Key::Key1),
+        (vec![KeyCode::Key2], core::types::Key::Key2),
+        (vec![KeyCode::Key3], core::types::Key::Key3),
+        (vec![KeyCode::Key4], core::types::Key::C),
+        (vec![KeyCode::Q], core::types::Key::Key4),
+        (vec![KeyCode::W], core::types::Key::Key5),
+        (vec![KeyCode::E, KeyCode::Space], core::types::Key::Key6),
+        (vec![KeyCode::R], core::types::Key::D),
+        (vec![KeyCode::A], core::types::Key::Key7),
+        (vec![KeyCode::S], core::types::Key::Key8),
+        (vec![KeyCode::D], core::types::Key::Key9),
+        (vec![KeyCode::F], core::types::Key::E),
+        (vec![KeyCode::Z], core::types::Key::A),
+        (vec![KeyCode::X], core::types::Key::Key0),
+        (vec![KeyCode::C], core::types::Key::B),
+        (vec![KeyCode::V], core::types::Key::F),
+    ];
+
     let mut last_frame_time = get_time();
     loop {
         let config_handle = Arc::clone(&global_config);
 
         // Handle user input
         let keys_pressed = get_keys_down();
-        for (k, v) in KEY_MAP.iter() {
-            if keys_pressed.contains(k) {
-                chip.set_key_state(*v, true);
-            } else {
-                chip.set_key_state(*v, false);
+        for (keys, v) in key_map.iter() {
+            let mut pressed = false;
+            for k in keys.iter() {
+                if keys_pressed.contains(k) {
+                    pressed = true;
+                }
             }
+            chip.set_key_state(*v, pressed);
         }
 
         // Switch modes
@@ -245,7 +246,8 @@ async fn main() {
         // Toggle debug output
         if is_key_pressed(KeyCode::I) {
             let mut config = config_handle.lock().unwrap();
-            config.debug_draw = !config.debug_draw;
+            config.debug_draw += 1;
+            config.debug_draw %= 3;
         }
         // Pause / Unpause updates
         if is_key_pressed(KeyCode::P) {
@@ -432,7 +434,26 @@ async fn main() {
 
         // Draw debug if enabled
         let now = get_time();
-        if config.debug_draw {
+        if config.debug_draw > 0 {
+            let frame_delta = now - last_frame_time;
+            let fps = 1.0 / frame_delta;
+            draw_text(
+                &format!("FPS: {:?}", fps as u32),
+                WINDOW_WIDTH as f32 - 100.0,
+                12.0,
+                20.0,
+                RED,
+            );
+            draw_text(
+                &format!("IPF: {:?}", config.ticks_per_frame as u32),
+                WINDOW_WIDTH as f32 - 100.0,
+                24.0,
+                20.0,
+                RED,
+            );
+        }
+
+        if config.debug_draw > 1 {
             let debug_x: f32 = 12.0;
             let debug_y: f32 = 0.0;
             let font_size: f32 = 20.0;
@@ -456,23 +477,6 @@ async fn main() {
                 &s,
                 WINDOW_WIDTH as f32 - 200.0,
                 WINDOW_HEIGHT as f32 - 4.0,
-                20.0,
-                RED,
-            );
-
-            let frame_delta = now - last_frame_time;
-            let fps = 1.0 / frame_delta;
-            draw_text(
-                &format!("FPS: {:?}", fps as u32),
-                WINDOW_WIDTH as f32 - 100.0,
-                12.0,
-                20.0,
-                RED,
-            );
-            draw_text(
-                &format!("IPF: {:?}", config.ticks_per_frame as u32),
-                WINDOW_WIDTH as f32 - 100.0,
-                24.0,
                 20.0,
                 RED,
             );
