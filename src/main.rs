@@ -14,8 +14,8 @@ use wasm_bindgen::JsValue;
 
 mod config;
 mod core;
-mod square_wave;
 mod display;
+mod square_wave;
 
 use crate::config::Config;
 use crate::core::error::CoreError;
@@ -262,7 +262,7 @@ async fn main() {
 
         // Draw the screen
         chip.v_blank();
-        
+
         display::draw_screen(&(chip.get_screen().lock().unwrap()), &color_map);
 
         let current_state = {
@@ -359,7 +359,7 @@ async fn main() {
                 }
                 if is_key_pressed(KeyCode::Enter) {
                     let mut state_writer = STATE.write().unwrap();
-                    *state_writer = EmuState::Run; 
+                    *state_writer = EmuState::Run;
                     core_error = None;
                 }
             }
@@ -372,13 +372,17 @@ async fn main() {
 
         let now = get_time();
         if config.debug_draw > 0 {
-            display::draw_basic_debug_info(chip.quirks_mode(), config.ticks_per_frame, now-last_frame_time);
+            display::draw_basic_debug_info(
+                chip.quirks_mode(),
+                config.ticks_per_frame,
+                now - last_frame_time,
+            );
         }
 
         if config.debug_draw > 1 {
             display::draw_emu_state(&chip.get_state());
         }
-        
+
         last_frame_time = now;
         drop(config);
         next_frame().await;

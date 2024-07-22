@@ -1,11 +1,11 @@
-use std::f64::consts::PI;
-use js_sys::Math::sin;
-use macroquad::color::{BLACK, Color, RED, VIOLET};
-use macroquad::prelude::{draw_rectangle, draw_text};
-use crate::{PIXEL_HEIGHT, PIXEL_WIDTH, WINDOW_HEIGHT, WINDOW_WIDTH};
 use crate::core::error::CoreError;
 use crate::core::quirks::Quirks;
 use crate::core::types::Screen;
+use crate::{PIXEL_HEIGHT, PIXEL_WIDTH, WINDOW_HEIGHT, WINDOW_WIDTH};
+use js_sys::Math::sin;
+use macroquad::color::{Color, BLACK, RED, VIOLET};
+use macroquad::prelude::{draw_rectangle, draw_text};
+use std::f64::consts::PI;
 
 pub fn draw_splash(last_frame_time: f64) {
     let alpha = sin(last_frame_time % PI) as f32;
@@ -80,17 +80,15 @@ pub fn draw_emu_state(state_str: &str) {
 }
 
 pub fn draw_string_lines(str: &str, x: f32, y: f32, font_size: f32, text_color: Color) {
-    str.split('\n')
-        .enumerate()
-        .for_each(|(ind, line)| {
-            draw_text(
-                line,
-                x,
-                y + ((ind as f32 + 1.0) * font_size),
-                font_size,
-                text_color,
-            );
-        }); 
+    str.split('\n').enumerate().for_each(|(ind, line)| {
+        draw_text(
+            line,
+            x,
+            y + ((ind as f32 + 1.0) * font_size),
+            font_size,
+            text_color,
+        );
+    });
 }
 
 pub fn show_error(err: &CoreError) {
@@ -109,7 +107,7 @@ pub fn show_error(err: &CoreError) {
         (WINDOW_HEIGHT - 32) as f32,
         err_box_color,
     );
-    
+
     // Header box && Label
     draw_rectangle(24.0, 24.0, (WINDOW_WIDTH - 48) as f32, 42.0, err_box_color2);
     draw_text(
@@ -119,7 +117,7 @@ pub fn show_error(err: &CoreError) {
         32.0,
         text_color,
     );
-    
+
     // Error info
     let err_text = format!("Type: {}\nInfo: {}", err.error_type, err.info);
     draw_string_lines(&err_text, debug_x, debug_y, font_size, text_color);
