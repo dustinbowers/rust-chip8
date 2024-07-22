@@ -1,9 +1,8 @@
-use crate::config::Config;
 use std::sync::{Arc, Mutex};
+use crate::config::Config;
 use tinyaudio::{run_output_device, BaseAudioOutputDevice, OutputDeviceParameters};
 
 use bitvec::prelude::BitVec;
-
 pub struct SquareWave {
     pub bit_pattern: BitVec<u8>, // 128 1-bit samples
     pub phase_inc: f64,          // (4000*2^((vx-64)/48)) / device_sample_rate
@@ -31,7 +30,6 @@ impl SquareWave {
     }
 }
 
-#[cfg(feature = "chip-audio")]
 pub fn init_audio(
     global_square_wave: &Arc<Mutex<SquareWave>>,
     global_config: &Arc<Mutex<Config>>,

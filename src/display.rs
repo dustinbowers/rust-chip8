@@ -47,6 +47,7 @@ pub fn draw_pause() {
     );
     draw_text(pause_str, x, y, pause_size, BLACK);
 }
+
 pub fn draw_basic_debug_info(quirks: &Quirks, ticks_per_frame: u32, frame_delta: f64) {
     let fps = 1.0 / frame_delta;
     draw_text(
@@ -65,8 +66,8 @@ pub fn draw_basic_debug_info(quirks: &Quirks, ticks_per_frame: u32, frame_delta:
     );
     draw_text(
         &format!("Mode: {}", quirks.mode_label),
-        WINDOW_WIDTH as f32 - 200.0,
-        WINDOW_HEIGHT as f32 - 4.0,
+        12.0,
+        12.0,
         20.0,
         RED,
     );

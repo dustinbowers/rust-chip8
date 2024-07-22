@@ -1,6 +1,7 @@
 use macroquad::prelude::*;
 use once_cell::sync::Lazy;
 use std::sync::{Arc, Mutex, RwLock};
+#[cfg(feature = "chip-audio")]
 use tinyaudio::BaseAudioOutputDevice;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -12,10 +13,12 @@ use {
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::JsValue;
 
+#[cfg(feature = "chip-audio")]
 mod audio;
 mod config;
 mod core;
 mod display;
+mod util;
 
 use crate::config::Config;
 use crate::core::error::CoreError;
@@ -87,17 +90,6 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
     // include_bytes!("../roms/xo-chip/expedition.ch8").to_vec()
     // include_bytes!("../roms/xo-chip/alien-inv8sion.ch8").to_vec()
 
-    // include_bytes!("../roms/jaxe-roms/chip8archive/xochip/jub8-1.ch8").to_vec()
-    // include_bytes!("../roms/jaxe-roms/chip8archive/xochip/flutterby.ch8").to_vec()
-    // include_bytes!("../roms/jaxe-roms/chip8archive/xochip/chickenScratch.ch8").to_vec()
-
-    // include_bytes!("../roms/schip/octogon.ch8").to_vec()
-    // include_bytes!("../roms/schip/dodge.ch8").to_vec()
-    // include_bytes!("../roms/schip/binding.ch8").to_vec()
-    // include_bytes!("../roms/schip/octopeg.ch8").to_vec()
-    // include_bytes!("../roms/schip/DVN8.ch8").to_vec()
-    // include_bytes!("../roms/schip/oob_test_7.ch8").to_vec()
-
     // include_bytes!("../roms/games/Space Invaders [David Winter].ch8").to_vec()
 }
 
@@ -146,16 +138,19 @@ static STATE: Lazy<Arc<RwLock<EmuState>>> = Lazy::new(|| Arc::new(RwLock::new(Em
 
 #[macroquad::main(window_conf)]
 async fn main() {
-    let global_square_wave = Arc::new(Mutex::new(audio::SquareWave::new()));
-    let audio_volume = 0.1f32;
 
+    #[cfg(feature = "chip-audio")]
+    let global_square_wave = Arc::new(Mutex::new(audio::SquareWave::new()));
+    #[cfg(feature = "chip-audio")]
+    let audio_volume = 0.1f32;
+    #[cfg(feature = "chip-audio")]
+    let mut audio_device: Option<Box<dyn BaseAudioOutputDevice>> = None;
+    
     let mut chip: Chip8 = Chip8::new();
     let mut core_error: Option<CoreError> = None;
     let global_config: Arc<Mutex<Config>> = Arc::new(Mutex::new(Config::new()));
     let mut color_map: Vec<Color>;
     let mut rom: Vec<u8>;
-
-    let mut audio_device: Option<Box<dyn BaseAudioOutputDevice>> = None;
 
     #[cfg(not(target_arch = "wasm32"))]
     {
@@ -229,14 +224,14 @@ async fn main() {
 
         if is_key_pressed(KeyCode::Minus) {
             let mut config = config_handle.lock().unwrap();
-            let increment = get_ipf_increment(config.ticks_per_frame);
+            let increment = util::get_ipf_increment(config.ticks_per_frame);
             config.ticks_per_frame -= increment;
             config.ticks_per_frame = config.ticks_per_frame.clamp(1, 200000);
         }
 
         if is_key_pressed(KeyCode::Equal) {
             let mut config = config_handle.lock().unwrap();
-            let increment = get_ipf_increment(config.ticks_per_frame);
+            let increment = util::get_ipf_increment(config.ticks_per_frame);
             config.ticks_per_frame += increment;
             config.ticks_per_frame = config.ticks_per_frame.clamp(1, 200000);
         }
@@ -261,7 +256,6 @@ async fn main() {
 
         // Draw the screen
         chip.v_blank();
-
         display::draw_screen(&(chip.get_screen().lock().unwrap()), &color_map);
 
         let current_state = {
@@ -325,10 +319,13 @@ async fn main() {
                             *state_writer = EmuState::Error;
                         }
                     }
-                    let (st, _) = chip.tick_timers(); // Tick timers at 60Hz
+
+                    #[cfg(not(feature = "chip-audio"))]
+                    chip.tick_timers();
 
                     #[cfg(feature = "chip-audio")]
                     if audio_device.is_some() {
+                        let (st, _) = chip.tick_timers();
                         let sw_handle = Arc::clone(&global_square_wave);
                         if st > 0 {
                             if let Mode::XoChip = chip.quirks_mode().mode {
@@ -364,39 +361,29 @@ async fn main() {
                 }
             }
         };
-        let config = global_config.lock().unwrap();
-
-        if config.pause_emulation {
-            display::draw_pause();
-        }
 
         let now = get_time();
-        if config.debug_draw > 0 {
-            display::draw_basic_debug_info(
-                chip.quirks_mode(),
-                config.ticks_per_frame,
-                now - last_frame_time,
-            );
-        }
+        {
+            let config = global_config.lock().unwrap();
 
-        if config.debug_draw > 1 {
-            display::draw_emu_state(&chip.get_state());
+            if config.pause_emulation {
+                display::draw_pause();
+            }
+
+            if config.debug_draw > 0 {
+                display::draw_basic_debug_info(
+                    chip.quirks_mode(),
+                    config.ticks_per_frame,
+                    now - last_frame_time,
+                );
+            }
+
+            if config.debug_draw > 1 {
+                display::draw_emu_state(&chip.get_state());
+            }
         }
 
         last_frame_time = now;
-        drop(config);
         next_frame().await;
-    }
-}
-
-fn get_ipf_increment(val: u32) -> u32 {
-    match val {
-        0..=9 => 1,
-        10..=99 => 10,
-        100..=999 => 50,
-        1000..=9999 => 500,
-        10_000..=99_999 => 5_000,
-        100_000..=999_999 => 50_000,
-        _ => 100,
     }
 }

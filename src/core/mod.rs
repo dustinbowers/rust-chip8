@@ -182,6 +182,7 @@ impl Chip8 {
         (st, dt)
     }
 
+    #[cfg(feature = "chip-audio")]
     pub fn get_sound(&mut self) -> Option<&Sound> {
         match self.sound.dirty {
             true => {
