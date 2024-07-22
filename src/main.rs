@@ -294,44 +294,7 @@ async fn main() {
             EmuState::Load => {
                 #[cfg(feature = "chip-audio")]
                 if audio_device.is_none() {
-                    let params = OutputDeviceParameters {
-                        channels_count: 1,
-                        sample_rate: 44100,
-                        channel_sample_count: 735,
-                    };
-
-                    let sw_handle = Arc::clone(&global_square_wave);
-                    let audio_config_handle = Arc::clone(&global_config);
-                    let device = run_output_device(params, {
-                        move |data| {
-                            let c = audio_config_handle.lock().unwrap();
-                            let paused = c.pause_emulation;
-                            drop(c);
-                            if paused {
-                                for d in data {
-                                    *d = 0.0;
-                                }
-                                return;
-                            }
-
-                            for samples in data.chunks_mut(params.channels_count) {
-                                for sample in samples {
-                                    let mut sw = sw_handle.lock().unwrap();
-                                    *sample = if sw.bit_pattern[(sw.phase_bit + 0.5) as usize] {
-                                        audio_volume
-                                    } else {
-                                        -audio_volume
-                                    };
-                                    sw.phase_bit += sw.phase_inc;
-                                    if (sw.phase_bit + 0.5) as usize >= 128 {
-                                        sw.phase_bit = 0.0;
-                                    }
-                                }
-                            }
-                        }
-                    })
-                    .unwrap();
-                    audio_device = Some(device);
+                    audio_device = init_audio(&global_square_wave, &global_config, audio_volume);
                 }
 
                 chip.reset();
@@ -381,9 +344,9 @@ async fn main() {
                         }
                     }
                     let (st, _) = chip.tick_timers(); // Tick timers at 60Hz
-                                                      // Handle audio
+
                     #[cfg(feature = "chip-audio")]
-                    {
+                    if audio_device.is_some() {
                         let sw_handle = Arc::clone(&global_square_wave);
                         if st > 0 {
                             if let Mode::XoChip = chip.quirks_mode().mode {
@@ -432,7 +395,7 @@ async fn main() {
             draw_text(pause_str, x, y, pause_size, BLACK);
         }
 
-        // Draw debug if enabled
+        // Draw basic debug info 
         let now = get_time();
         if config.debug_draw > 0 {
             let frame_delta = now - last_frame_time;
@@ -453,6 +416,7 @@ async fn main() {
             );
         }
 
+        // Draw in-depth debug info
         if config.debug_draw > 1 {
             let debug_x: f32 = 12.0;
             let debug_y: f32 = 0.0;
@@ -533,5 +497,54 @@ fn get_ipf_increment(val: u32) -> u32 {
         10_000..=99_999 => 5_000,
         100_000..=999_999 => 50_000,
         _ => 100,
+    }
+}
+
+#[cfg(feature = "chip-audio")]
+fn init_audio(
+    global_square_wave: &Arc<Mutex<SquareWave>>,
+    global_config: &Arc<Mutex<Config>>,
+    audio_volume: f32,
+) -> Option<Box<dyn BaseAudioOutputDevice>> {
+    let sw_handle = Arc::clone(&global_square_wave);
+    let audio_config_handle = Arc::clone(&global_config);
+    let params = OutputDeviceParameters {
+        channels_count: 1,
+        sample_rate: 44100,
+        channel_sample_count: 735,
+    };
+
+    let device = run_output_device(params, {
+        move |data| {
+            let c = audio_config_handle.lock().unwrap();
+            let paused = c.pause_emulation;
+            drop(c);
+            if paused {
+                for d in data {
+                    *d = 0.0;
+                }
+                return;
+            }
+
+            for samples in data.chunks_mut(params.channels_count) {
+                for sample in samples {
+                    let mut sw = sw_handle.lock().unwrap();
+                    *sample = if sw.bit_pattern[(sw.phase_bit + 0.5) as usize] {
+                        audio_volume
+                    } else {
+                        -audio_volume
+                    };
+                    sw.phase_bit += sw.phase_inc;
+                    if (sw.phase_bit + 0.5) as usize >= 128 {
+                        sw.phase_bit = 0.0;
+                    }
+                }
+            }
+        }
+    });
+
+    match device {
+        Ok(d) => Some(d),
+        Err(_) => None,
     }
 }
