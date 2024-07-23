@@ -137,7 +137,6 @@ enum EmuState {
 }
 
 static STATE: Lazy<Arc<RwLock<EmuState>>> = Lazy::new(|| Arc::new(RwLock::new(EmuState::Preload)));
-// static SILENCE: Lazy<Arc<RwLock<bool>>> = Lazy::new(|| Arc::new(RwLock::new(true)));
 
 #[macroquad::main(window_conf)]
 async fn main() {

@@ -1,15 +1,16 @@
 
-# Multi-platform Chip-8 Emulator
+# Multi-platform XO-CHIP Emulator
 
 ![Build action](https://github.com/dustinbowers/rust-chip8/actions/workflows/rust.yml/badge.svg)
 
-An emulator written in [Rust](https://www.rust-lang.org/) using [Macroquad](https://macroquad.rs/) for rendering
+An XO-CHIP emulator written in [Rust](https://www.rust-lang.org/) using [Macroquad](https://macroquad.rs/) for rendering, meant to be compiled to WASM, with support for underlying platforms
 
-Currently supported platforms:
+Currently supported extensions:
 - [XO-CHIP](https://johnearnest.github.io/Octo/docs/XO-ChipSpecification.html)
 - [CHIP-8](https://en.wikipedia.org/wiki/CHIP-8)
 - [Super-Chip 1.1 (Modern)](https://github.com/Chromatophore/HP48-Superchip)
 - [Super-Chip 1.1 (Legacy)](https://github.com/Chromatophore/HP48-Superchip/blob/master/binaries/SCHIP_origin.txt)
+  - with caveats
 
 ## What is CHIP-8?
 
