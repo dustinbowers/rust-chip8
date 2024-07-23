@@ -1,4 +1,7 @@
-# CHIP-8 Emulator
+
+# Multi-platform Chip-8 Emulator
+
+![Build action](https://github.com/dustinbowers/rust-chip8/actions/workflows/rust.yml/badge.svg)
 
 An emulator written in [Rust](https://www.rust-lang.org/) using [Macroquad](https://macroquad.rs/) for rendering
 
