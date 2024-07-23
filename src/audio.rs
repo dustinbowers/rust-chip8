@@ -1,5 +1,5 @@
-use std::sync::{Arc, Mutex};
 use crate::config::Config;
+use std::sync::{Arc, Mutex, RwLock};
 use tinyaudio::{run_output_device, BaseAudioOutputDevice, OutputDeviceParameters};
 
 use bitvec::prelude::BitVec;
@@ -33,10 +33,11 @@ impl SquareWave {
 pub fn init_audio(
     global_square_wave: &Arc<Mutex<SquareWave>>,
     global_config: &Arc<Mutex<Config>>,
-    audio_volume: f32,
+    silence: &Arc<RwLock<bool>>,
 ) -> Option<Box<dyn BaseAudioOutputDevice>> {
     let sw_handle = Arc::clone(&global_square_wave);
     let audio_config_handle = Arc::clone(&global_config);
+    let silence_reader = Arc::clone(&silence);
     let params = OutputDeviceParameters {
         channels_count: 1,
         sample_rate: 44100,
@@ -47,8 +48,9 @@ pub fn init_audio(
         move |data| {
             let c = audio_config_handle.lock().unwrap();
             let paused = c.pause_emulation;
+            let audio_level = c.audio_level;
             drop(c);
-            if paused {
+            if paused || *(silence_reader.read().unwrap()) {
                 for d in data {
                     *d = 0.0;
                 }
@@ -59,9 +61,9 @@ pub fn init_audio(
                 for sample in samples {
                     let mut sw = sw_handle.lock().unwrap();
                     *sample = if sw.bit_pattern[(sw.phase_bit + 0.5) as usize] {
-                        audio_volume
+                        audio_level
                     } else {
-                        -audio_volume
+                        -audio_level
                     };
                     sw.phase_bit += sw.phase_inc;
                     if (sw.phase_bit + 0.5) as usize >= 128 {

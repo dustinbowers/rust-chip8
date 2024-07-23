@@ -15,18 +15,18 @@ use wasm_bindgen::JsValue;
 
 #[cfg(feature = "chip-audio")]
 mod audio;
+mod color_map;
 mod config;
 mod core;
 mod display;
 mod util;
-mod color_map;
 
+use crate::color_map::ColorMap;
 use crate::config::Config;
 use crate::core::error::CoreError;
 use crate::core::quirks::Mode;
 use core::Chip8;
 use core::{DISPLAY_COLS, DISPLAY_ROWS};
-use crate::color_map::ColorMap;
 
 const WINDOW_HEIGHT: i32 = 256;
 const WINDOW_WIDTH: i32 = 512;
@@ -86,11 +86,11 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
     // include_bytes!("../roms/xo-chip/anEveningToDieFor.xo8").to_vec()
     // include_bytes!("../roms/xo-chip/t8nks.xo8").to_vec()
     // include_bytes!("../roms/xo-chip/chip8e-test.c8e").to_vec()
-    include_bytes!("../roms/xo-chip/superneatboy.ch8").to_vec()
+    // include_bytes!("../roms/xo-chip/superneatboy.ch8").to_vec()
     // include_bytes!("../roms/xo-chip/nyancat.ch8").to_vec()
     // include_bytes!("../roms/xo-chip/NYAN.xo8").to_vec()
     // include_bytes!("../roms/xo-chip/expedition.ch8").to_vec()
-    // include_bytes!("../roms/xo-chip/alien-inv8sion.ch8").to_vec()
+    include_bytes!("../roms/xo-chip/alien-inv8sion.ch8").to_vec()
 
     // include_bytes!("../roms/games/Space Invaders [David Winter].ch8").to_vec()
 }
@@ -137,17 +137,16 @@ enum EmuState {
 }
 
 static STATE: Lazy<Arc<RwLock<EmuState>>> = Lazy::new(|| Arc::new(RwLock::new(EmuState::Preload)));
+// static SILENCE: Lazy<Arc<RwLock<bool>>> = Lazy::new(|| Arc::new(RwLock::new(true)));
 
 #[macroquad::main(window_conf)]
 async fn main() {
-
     #[cfg(feature = "chip-audio")]
     let global_square_wave = Arc::new(Mutex::new(audio::SquareWave::new()));
     #[cfg(feature = "chip-audio")]
-    let audio_volume = 0.1f32;
-    #[cfg(feature = "chip-audio")]
     let mut audio_device: Option<Box<dyn BaseAudioOutputDevice>> = None;
-    
+    let audio_silence = Arc::new(RwLock::new(true));
+
     let mut chip: Chip8 = Chip8::new();
     let mut core_error: Option<CoreError> = None;
     let global_config: Arc<Mutex<Config>> = Arc::new(Mutex::new(Config::new()));
@@ -257,8 +256,7 @@ async fn main() {
             EmuState::Load => {
                 #[cfg(feature = "chip-audio")]
                 if audio_device.is_none() {
-                    audio_device =
-                        audio::init_audio(&global_square_wave, &global_config, audio_volume);
+                    audio_device = audio::init_audio(&global_square_wave, &global_config, &audio_silence);
                 }
 
                 chip.reset();
@@ -308,6 +306,10 @@ async fn main() {
                         let (st, _) = chip.tick_timers();
                         let sw_handle = Arc::clone(&global_square_wave);
                         if st > 0 {
+                            if *(audio_silence.read().unwrap()) {
+                                let mut silence_writer = audio_silence.write().unwrap();
+                                *silence_writer = false;
+                            }
                             if let Mode::XoChip = chip.quirks_mode().mode {
                                 if let Some(snd) = chip.get_sound() {
                                     sw_handle
@@ -325,7 +327,8 @@ async fn main() {
                                 );
                             }
                         } else {
-                            sw_handle.lock().unwrap().set_pattern(64, vec![0u8; 16]);
+                            let mut silence_writer = audio_silence.write().unwrap();
+                            *silence_writer = true;
                         }
                     }
                 }
