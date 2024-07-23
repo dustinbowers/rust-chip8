@@ -296,6 +296,7 @@ async fn main() {
                             core_error = Some(e);
                             let mut state_writer = STATE.write().unwrap();
                             *state_writer = EmuState::Error;
+                            break;
                         }
                     }
 
