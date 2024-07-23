@@ -19,7 +19,7 @@ impl Quirks {
     pub fn new(mode: Mode) -> Self {
         match mode {
             Mode::Chip8Modern => Quirks {
-                mode: Mode::Chip8Modern,
+                mode,
                 mode_label: "Chip8-Modern".to_string(),
                 vf_reset: true,
                 load_store_index_increase: true,
@@ -29,7 +29,7 @@ impl Quirks {
                 jump_plus_vx: false,
             },
             Mode::SuperChipModern => Quirks {
-                mode: Mode::SuperChipModern,
+                mode,
                 mode_label: "SuperChip-Modern".to_string(),
                 vf_reset: false,
                 load_store_index_increase: false,
@@ -39,7 +39,7 @@ impl Quirks {
                 jump_plus_vx: true,
             },
             Mode::SuperChipLegacy => Quirks {
-                mode: Mode::SuperChipLegacy,
+                mode,
                 mode_label: "SuperChip-Legacy".to_string(),
                 vf_reset: false,
                 load_store_index_increase: false,
@@ -49,7 +49,7 @@ impl Quirks {
                 jump_plus_vx: true,
             },
             Mode::XoChip => Quirks {
-                mode: Mode::XoChip,
+                mode,
                 mode_label: "xo-chip".to_string(),
                 vf_reset: false,
                 load_store_index_increase: true,
