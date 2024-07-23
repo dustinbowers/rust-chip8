@@ -958,6 +958,12 @@ impl Chip8 {
             let page_size = sprite_rows as usize;
             for byte_ind in 0..sprite_rows {
                 let sprite_offset = sprite_offset + (page_num * page_size) + byte_ind as usize;
+                if sprite_offset > self.memory.len() - 1 {
+                    return Err(CoreError::new(
+                        err_info!(),
+                        InvalidMemoryAccess(self.pc, sprite_offset),
+                    ));
+                }
                 let sprite_byte = self.memory[sprite_offset];
 
                 //draw a Chip8 8xN sprite
