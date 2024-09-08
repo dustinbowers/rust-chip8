@@ -1,7 +1,8 @@
-use std::{env, process};
 use macroquad::prelude::*;
 use once_cell::sync::Lazy;
 use std::sync::{Arc, Mutex, RwLock};
+#[cfg(not(target_arch = "wasm32"))]
+use std::{env, process};
 #[cfg(feature = "chip-audio")]
 use tinyaudio::BaseAudioOutputDevice;
 
@@ -391,6 +392,7 @@ async fn main() {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn usage() {
     let args: Vec<String> = env::args().collect();
     eprintln!("Usage: {} <Filename> <CHIP Mode> <Ticks-per-frame>", args[0]);
