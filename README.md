@@ -12,9 +12,19 @@ Currently supported extensions:
 - [Super-Chip 1.1 (Legacy)](https://github.com/Chromatophore/HP48-Superchip/blob/master/binaries/SCHIP_origin.txt)
   - with caveats
 
+## Screenshots
+<img src="https://github.com/dustinbowers/rust-chip8/blob/main/screenshots/nyancat.gif" width="40%"> <img src="https://github.com/dustinbowers/rust-chip8/blob/main/screenshots/super-neat-boy.gif" width="40%">
+<img src="https://github.com/dustinbowers/rust-chip8/blob/main/screenshots/alien-inv8sion.gif" width="40%"> <img src="https://github.com/dustinbowers/rust-chip8/blob/main/screenshots/t8nks.gif" width="40%">
+
 ## Live Demo
 
 Play with the live demo here: https://dustinbowers.com/rust-chip8
+
+## What is CHIP-8?
+
+> Chip-8 is a simple, interpreted, programming language which was first used on some do-it-yourself computer systems in the late 1970s and early 1980s. The COSMAC VIP, DREAM 6800, and ETI 660 computers are a few examples. These computers typically were designed to use a television as a display, had between 1 and 4K of RAM, and used a 16-key hexadecimal keypad for input. The interpreter took up only 512 bytes of memory, and programs, which were entered into the computer in hexadecimal, were even smaller.
+
+[(source)](http://devernay.free.fr/hacks/chip8/C8TECH10.HTM#1.0)
 
 ## Usage
 
@@ -30,16 +40,6 @@ Usage: chip8 <Filename> <CHIP Mode> <Ticks-per-frame>
         4 - XO-Chip
 <Ticks-per-frame> - Number of instructions emulated per frame
 ```
-
-## Screenshots
-<img src="https://github.com/dustinbowers/rust-chip8/blob/main/screenshots/nyancat.gif" width="40%"> <img src="https://github.com/dustinbowers/rust-chip8/blob/main/screenshots/super-neat-boy.gif" width="40%">
-<img src="https://github.com/dustinbowers/rust-chip8/blob/main/screenshots/alien-inv8sion.gif" width="40%"> <img src="https://github.com/dustinbowers/rust-chip8/blob/main/screenshots/t8nks.gif" width="40%">
-
-## What is CHIP-8?
-
-> Chip-8 is a simple, interpreted, programming language which was first used on some do-it-yourself computer systems in the late 1970s and early 1980s. The COSMAC VIP, DREAM 6800, and ETI 660 computers are a few examples. These computers typically were designed to use a television as a display, had between 1 and 4K of RAM, and used a 16-key hexadecimal keypad for input. The interpreter took up only 512 bytes of memory, and programs, which were entered into the computer in hexadecimal, were even smaller.
-
-[(source)](http://devernay.free.fr/hacks/chip8/C8TECH10.HTM#1.0)
 
 ## Useful links 
 
