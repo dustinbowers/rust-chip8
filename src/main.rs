@@ -94,30 +94,6 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
 }
 #[cfg(not(target_arch = "wasm32"))]
 pub fn fetch_rom_bytes() -> Vec<u8> {
-    // Test CPU
-    // include_bytes!("../roms/programs/BC_test.ch8").to_vec()
-    // include_bytes!("../roms/tests/1-core-logo.ch8").to_vec()
-    // include_bytes!("../roms/tests/3-corax+.ch8").to_vec()
-    // include_bytes!("../roms/tests/4-flags.ch8").to_vec()
-    // include_bytes!("../roms/tests/5-quirks.ch8").to_vec()
-    // include_bytes!("../roms/tests/6-keypad.ch8").to_vec()
-    // include_bytes!("../roms/tests/7-beep.ch8").to_vec()
-    // include_bytes!("../roms/tests/8-scrolling.ch8").to_vec()
-    // include_bytes!("../roms/programs/Keypad Test [Hap, 2006].ch8").to_vec()
-
-    // include_bytes!("../roms/xo-chip/color-scroll-test-xochip.xo8").to_vec()
-    // include_bytes!("../roms/xo-chip/scroll_edge_test_b.ch8").to_vec()
-    // include_bytes!("../roms/xo-chip/anEveningToDieFor.xo8").to_vec()
-    // include_bytes!("../roms/xo-chip/t8nks.xo8").to_vec()
-    // include_bytes!("../roms/xo-chip/chip8e-test.c8e").to_vec()
-    // include_bytes!("../roms/xo-chip/superneatboy.ch8").to_vec()
-    // include_bytes!("../roms/xo-chip/nyancat.ch8").to_vec()
-    // include_bytes!("../roms/xo-chip/NYAN.xo8").to_vec()
-    // include_bytes!("../roms/xo-chip/expedition.ch8").to_vec()
-    // include_bytes!("../roms/xo-chip/alien-inv8sion.ch8").to_vec()
-
-    // include_bytes!("../roms/games/Space Invaders [David Winter].ch8").to_vec()
-
     let args: Vec<String> = env::args().collect();
     let filename = args[1].clone();
     let bytes_result = load_rom_file(filename);
@@ -178,10 +154,7 @@ static STATE: Lazy<Arc<RwLock<EmuState>>> = Lazy::new(|| Arc::new(RwLock::new(Em
 async fn main() {
     #[cfg(not(target_arch = "wasm32"))]
     {
-        // Collect command-line arguments into a vector
         let args: Vec<String> = env::args().collect();
-
-        // Check if exactly one argument (the filename) is provided
         if args.len() != 4 {
             usage();
             process::exit(1);
