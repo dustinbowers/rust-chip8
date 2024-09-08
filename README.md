@@ -12,6 +12,10 @@ Currently supported extensions:
 - [Super-Chip 1.1 (Legacy)](https://github.com/Chromatophore/HP48-Superchip/blob/master/binaries/SCHIP_origin.txt)
   - with caveats
 
+## Live Demo
+
+Play with the live demo here: https://dustinbowers.com/rust-chip8
+
 ## Usage
 
 ```
@@ -25,6 +29,10 @@ Usage: ./chip8 <Filename> <CHIP Mode> <Ticks-per-frame>
         4 - XO-Chip
 <Ticks-per-frame> - Number of instructions emulated per frame
 ```
+
+## Screenshots
+<img src="https://github.com/dustinbowers/rust-chip8/blob/main/screenshots/nyancat.gif" width="40%"> <img src="https://github.com/dustinbowers/rust-chip8/blob/main/screenshots/super-neat-boy.gif" width="40%">
+<img src="https://github.com/dustinbowers/rust-chip8/blob/main/screenshots/alien-inv8sion.gif" width="40%"> <img src="https://github.com/dustinbowers/rust-chip8/blob/main/screenshots/t8nks.gif" width="40%">
 
 ## What is CHIP-8?
 
