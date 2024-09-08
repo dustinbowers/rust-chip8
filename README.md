@@ -6,11 +6,25 @@
 An XO-CHIP emulator written in [Rust](https://www.rust-lang.org/) using [Macroquad](https://macroquad.rs/) for rendering, meant to be compiled to WASM, with support for underlying platforms
 
 Currently supported extensions:
-- [XO-CHIP](https://johnearnest.github.io/Octo/docs/XO-ChipSpecification.html)
+- [XO-CHIP](https://johnearnest.github.io/Octo/docs/XO-ChipSpecification.html) (Extended to support 4-bit planes / 16 colors!)
 - [CHIP-8](https://en.wikipedia.org/wiki/CHIP-8)
 - [Super-Chip 1.1 (Modern)](https://github.com/Chromatophore/HP48-Superchip)
 - [Super-Chip 1.1 (Legacy)](https://github.com/Chromatophore/HP48-Superchip/blob/master/binaries/SCHIP_origin.txt)
   - with caveats
+
+## Usage
+
+```
+Usage: ./chip8 <Filename> <CHIP Mode> <Ticks-per-frame>
+
+<Filename> - path to ROM File
+<CHIP Mode>
+        1 - CHIP-8
+        2 - SuperChip Modern
+        3 - SuperChip Legacy
+        4 - XO-Chip
+<Ticks-per-frame> - Number of instructions emulated per frame
+```
 
 ## What is CHIP-8?
 

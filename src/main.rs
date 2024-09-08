@@ -1,3 +1,4 @@
+use std::{env, process};
 use macroquad::prelude::*;
 use once_cell::sync::Lazy;
 use std::sync::{Arc, Mutex, RwLock};
@@ -61,7 +62,30 @@ pub fn fetch_config() -> Config {
 }
 #[cfg(not(target_arch = "wasm32"))]
 fn fetch_config() -> Config {
-    Config::new()
+    let mut conf = Config::new();
+
+    let args: Vec<String> = env::args().collect();
+    match args[2].clone().as_str() {
+        "1" => { conf.core_mode = "chip8".to_string() }
+        "2" => { conf.core_mode = "superchipmodern".to_string() }
+        "3" => { conf.core_mode = "superchiplegacy".to_string() }
+        "4" => { conf.core_mode = "xochip".to_string() }
+        _ => {
+            eprintln!("Error: Invalid Core Mode: {}\n\n", args[2]);
+            usage();
+            process::exit(1);
+        }
+    }
+    let tpf = args[3].parse::<u32>();
+    match tpf {
+        Ok(tpf) => { conf.ticks_per_frame = tpf; }
+        Err(e) => {
+            eprintln!("Error: Invalid tick rate: {}\n\n", e);
+            usage();
+            process::exit(1);
+        }
+    }
+    conf
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -90,9 +114,21 @@ pub fn fetch_rom_bytes() -> Vec<u8> {
     // include_bytes!("../roms/xo-chip/nyancat.ch8").to_vec()
     // include_bytes!("../roms/xo-chip/NYAN.xo8").to_vec()
     // include_bytes!("../roms/xo-chip/expedition.ch8").to_vec()
-    include_bytes!("../roms/xo-chip/alien-inv8sion.ch8").to_vec()
+    // include_bytes!("../roms/xo-chip/alien-inv8sion.ch8").to_vec()
 
     // include_bytes!("../roms/games/Space Invaders [David Winter].ch8").to_vec()
+
+    let args: Vec<String> = env::args().collect();
+    let filename = args[1].clone();
+    let bytes_result = load_rom_file(filename);
+    match bytes_result {
+        Ok(bytes) => { return bytes; }
+        Err(e) => {
+            eprintln!("Error loading ROM: {}\n\n", e);
+            usage();
+            process::exit(1);
+        }
+    }
 }
 
 fn window_conf() -> Conf {
@@ -107,7 +143,7 @@ fn window_conf() -> Conf {
 
 #[allow(dead_code)]
 #[cfg(not(target_arch = "wasm32"))]
-fn load_rom_file(filename: &str) -> io::Result<Vec<u8>> {
+fn load_rom_file(filename: String) -> io::Result<Vec<u8>> {
     // TODO: might use this later
     let mut file = fs::File::open(filename)?;
     let mut buffer = Vec::new();
@@ -140,6 +176,18 @@ static STATE: Lazy<Arc<RwLock<EmuState>>> = Lazy::new(|| Arc::new(RwLock::new(Em
 
 #[macroquad::main(window_conf)]
 async fn main() {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        // Collect command-line arguments into a vector
+        let args: Vec<String> = env::args().collect();
+
+        // Check if exactly one argument (the filename) is provided
+        if args.len() != 4 {
+            usage();
+            process::exit(1);
+        }
+    }
+
     #[cfg(feature = "chip-audio")]
     let global_square_wave = Arc::new(Mutex::new(audio::SquareWave::new()));
     #[cfg(feature = "chip-audio")]
@@ -368,4 +416,17 @@ async fn main() {
         last_frame_time = now;
         next_frame().await;
     }
+}
+
+fn usage() {
+    let args: Vec<String> = env::args().collect();
+    eprintln!("Usage: {} <Filename> <CHIP Mode> <Ticks-per-frame>", args[0]);
+    eprintln!();
+    eprintln!("<Filename> - path to ROM File");
+    eprintln!("<CHIP Mode>");
+    eprintln!("\t1 - CHIP-8");
+    eprintln!("\t2 - SuperChip Modern");
+    eprintln!("\t3 - SuperChip Legacy");
+    eprintln!("\t4 - XO-Chip");
+    eprintln!("<Ticks-per-frame> - Number of instructions emulated per frame\n");
 }
