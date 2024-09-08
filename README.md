@@ -3,7 +3,7 @@
 
 ![Build action](https://github.com/dustinbowers/rust-chip8/actions/workflows/rust.yml/badge.svg)
 
-An XO-CHIP emulator written in [Rust](https://www.rust-lang.org/) using [Macroquad](https://macroquad.rs/) for rendering, meant to be compiled to WASM, with support for underlying platforms
+An XO-CHIP emulator written in [Rust](https://www.rust-lang.org/) using [Macroquad](https://macroquad.rs/) for rendering, meant to be compiled to WASM. Includes support for CHIP-8 predecessors as well
 
 Currently supported extensions:
 - [XO-CHIP](https://johnearnest.github.io/Octo/docs/XO-ChipSpecification.html) (Extended to support 4-bit planes / 16 colors!)
@@ -18,8 +18,9 @@ Play with the live demo here: https://dustinbowers.com/rust-chip8
 
 ## Usage
 
+From a terminal:
 ```
-Usage: ./chip8 <Filename> <CHIP Mode> <Ticks-per-frame>
+Usage: chip8 <Filename> <CHIP Mode> <Ticks-per-frame>
 
 <Filename> - path to ROM File
 <CHIP Mode>
