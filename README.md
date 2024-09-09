@@ -40,6 +40,9 @@ Usage: chip8 <Filename> <CHIP Mode> <Ticks-per-frame>
         4 - XO-Chip
 <Ticks-per-frame> - Number of instructions emulated per frame
 ```
+## Note
+
+All ROMs in this repo were gathered together from various places around the internet, and credit for each goes to their respective authors
 
 ## Useful links 
 
