@@ -904,7 +904,7 @@ impl Chip8 {
                     if self.hires_mode {
                         let mut screen_x = col % DISPLAY_COLS as u8;
                         let mut screen_y = row % DISPLAY_ROWS as u8;
-                        screen_x += 16 - c;
+                        screen_x += 15 - c;
                         screen_y += r as u8;
                         if self.quirks.clipping {
                             if screen_x as usize >= DISPLAY_COLS {
@@ -925,7 +925,7 @@ impl Chip8 {
                         let mut screen_x = col % (DISPLAY_COLS / 2) as u8;
                         let mut screen_y = row % (DISPLAY_ROWS / 2) as u8;
 
-                        screen_x += 16 - c;
+                        screen_x += 15 - c;
                         screen_y += r as u8;
 
                         if self.quirks.clipping {
