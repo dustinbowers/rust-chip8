@@ -18,3 +18,5 @@ web-server:
 	basic-http-server ./dist
 
 build-test-web: wasm web-server
+
+build-test-web-release: wasm-release web-server
