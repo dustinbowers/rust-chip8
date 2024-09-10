@@ -2,6 +2,7 @@
 # Multi-platform XO-CHIP Emulator
 
 ![Build action](https://github.com/dustinbowers/rust-chip8/actions/workflows/rust.yml/badge.svg)
+![Build action](https://github.com/dustinbowers/rust-chip8/actions/workflows/wasm.yml/badge.svg)
 
 An XO-CHIP emulator written in [Rust](https://www.rust-lang.org/) using [Macroquad](https://macroquad.rs/) for rendering, meant to be compiled to WASM. Includes support for CHIP-8 predecessors as well
 
