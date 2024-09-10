@@ -14,7 +14,8 @@ Currently supported extensions:
   - with caveats
 
 ## Screenshots
-<img src="https://github.com/dustinbowers/rust-chip8/blob/main/screenshots/nyancat.gif" width="40%"> <img src="https://github.com/dustinbowers/rust-chip8/blob/main/screenshots/super-neat-boy.gif" width="40%">
+
+<img src="https://github.com/dustinbowers/rust-chip8/blob/main/screenshots/super-neat-boy.gif" width="40%"> <img src="https://github.com/dustinbowers/rust-chip8/blob/main/screenshots/nyancat.gif" width="40%">
 <img src="https://github.com/dustinbowers/rust-chip8/blob/main/screenshots/alien-inv8sion.gif" width="40%"> <img src="https://github.com/dustinbowers/rust-chip8/blob/main/screenshots/t8nks.gif" width="40%">
 
 ## Live Demo
