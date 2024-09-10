@@ -17,6 +17,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y pkg-config libasound2-dev && cargo install -f wasm-bindgen-cli --version 0.2.92 && rustup target add wasm32-unknown-unknown
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libasound2-dev && rustup target add wasm32-unknown-unknown
       - name: Build WASM
-        run: make wasm-release
+        run: cargo build --release --target wasm32-unknown-unknown
