@@ -28,6 +28,21 @@ Play with the live demo here: https://dustinbowers.com/rust-chip8
 
 [(source)](http://devernay.free.fr/hacks/chip8/C8TECH10.HTM#1.0)
 
+## Build
+
+The Makefile includes various targets:
+
+| Target                     | Description                                              |
+|-----------------------------|----------------------------------------------------------|
+| `make build`                | Build debug binary                                       |
+| `make release`              | Build release binary                                     |
+| `make wasm`                 | Build debug WASM                                         |
+| `make wasm-release`         | Build release WASM                                       |
+| `make web-server`           | Run `basic-http-server` from the `./dist` directory at http://localhost:4000 |
+| `make build-test-web`       | Build debug WASM and run webserver from `./dist`         |
+| `make build-test-web-release`| Build release WASM and run webserver from `./dist`      |
+
+
 ## Usage
 
 From a terminal:
