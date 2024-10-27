@@ -45,7 +45,7 @@ The Makefile includes various targets:
 
 ## Usage
 
-From a terminal:
+Binary:
 ```
 Usage: chip8 <Filename> <CHIP Mode> <Ticks-per-frame>
 
@@ -57,6 +57,14 @@ Usage: chip8 <Filename> <CHIP Mode> <Ticks-per-frame>
         4 - XO-Chip
 <Ticks-per-frame> - Number of instructions emulated per frame
 ```
+
+Locally hosted WASM:
+```
+make build-test-web-release
+```
+and browse to http://localhost:4000
+
+
 ## Note
 
 All ROMs in this repo were gathered together from various places around the internet, and credit for each goes to their respective authors
