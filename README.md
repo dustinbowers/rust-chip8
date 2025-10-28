@@ -15,7 +15,7 @@ Currently supported extensions:
 
 ## Live Demo
 
-Play with the live demo here: https://dustinbowers.com/rust-chip8
+Play with the live demo here: [https://dustinbowers.com/demos/rust-chip8](https://dustinbowers.com/demos/rust-chip8)
 
 ## Screenshots
 
